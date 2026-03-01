@@ -120,10 +120,21 @@ const SkeletonCard = () => (
 export default function Articles() {
     return (
         <Suspense fallback={
-            <div className="ar-loading">
-                <div className="ar-spinner" />
-                <p className="ar-loading-text">Đang tải tài liệu...</p>
+<div className="flex flex-col justify-center items-center min-h-[calc(100vh-64px)] bg-gradient-to-br from-emerald-50 via-orange-50 to-green-50 p-8">
+    
+    {/* Center loading indicator */}
+    <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 border-4 border-emerald-100">
+            <div className="relative w-16 h-16 mx-auto">
+                <div className="absolute inset-0 rounded-full border-4 border-emerald-200"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-emerald-500 border-r-orange-500 animate-spin"></div>
             </div>
+            <p className="mt-4 text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-orange-600">
+                Đang tải...
+            </p>
+        </div>
+    </div>
+</div>
         }>
             <ArticlesContent />
         </Suspense>

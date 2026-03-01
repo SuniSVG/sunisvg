@@ -187,15 +187,21 @@ export default function ForumPage() {
 
     if (isLoading) {
         return (
-            <div className="flex flex-col justify-center items-center min-h-[calc(100vh-64px)] bg-gradient-to-br from-emerald-50 via-orange-50 to-green-50">
-                <div className="relative">
-                    <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-transparent bg-gradient-to-r from-emerald-500 to-orange-500" style={{ borderImage: 'linear-gradient(to right, #10b981, #f97316) 1' }}></div>
-                    <div className="absolute inset-0 animate-ping rounded-full h-20 w-20 border-4 border-emerald-300 opacity-20"></div>
-                </div>
-                <p className="mt-6 text-lg font-semibold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-orange-600">
-                    Đang tải diễn đàn...
-                </p>
+<div className="flex flex-col justify-center items-center min-h-[calc(100vh-64px)] bg-gradient-to-br from-emerald-50 via-orange-50 to-green-50 p-8">
+    
+    {/* Center loading indicator */}
+    <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 border-4 border-emerald-100">
+            <div className="relative w-16 h-16 mx-auto">
+                <div className="absolute inset-0 rounded-full border-4 border-emerald-200"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-emerald-500 border-r-orange-500 animate-spin"></div>
             </div>
+            <p className="mt-4 text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-orange-600">
+                Đang tải...
+            </p>
+        </div>
+    </div>
+</div>
         );
     }
 
