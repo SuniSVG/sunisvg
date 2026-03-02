@@ -1,30 +1,27 @@
-import type {Metadata} from 'next';
+import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import './globals.css'; // Global styles
+import './globals.css';
 import Providers from '@/components/Providers';
-import { GlobalTools } from '@/components/GlobalTools';
 
-const inter = Inter({
-  subsets: ['latin', 'vietnamese'],
-  variable: '--font-sans',
-});
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'SuniSVG - Nền tảng học tập trực tuyến',
-  description: 'Thư viện học tập lớn, cung cấp tài liệu, đề thi và luyện tập.',
+  title: 'SuniSVG',
+  description: 'Nền tảng học tập trực tuyến',
+  icons: {
+    icon: '/favicon1.ico',
+  },
 };
 
-export default function RootLayout({children}: {children: React.ReactNode}) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="vi" className={`${inter.variable}`} suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://qr.sepay.vn" />
-      </head>
-      <body className="font-sans antialiased bg-white text-gray-900" suppressHydrationWarning>
-        <Providers>
-          <GlobalTools />
-          {children}
-        </Providers>
+    <html lang="vi">
+      <body className={inter.className}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

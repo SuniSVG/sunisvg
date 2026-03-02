@@ -15,6 +15,17 @@ const SUBJECT_OPTIONS = [
   'Sử', 'Địa', 'GDCD', 'Tin học', 'Thể dục', 'Tiến bộ', 'Thời gian',
 ];
 
+const SUBJECT_PREFIX_MAP: Record<string, string> = {
+  'Toán': '99999991',
+  'Văn': '99999992',
+  'Anh': '99999993',
+  'Hóa': '99999994',
+  'Sinh': '99999995',
+  'Sử': '99999996',
+  'Địa': '99999997',
+  'Lý': '99999998',
+};
+
 const DEFAULT_LABELS: { label: string; desc: string }[] = [
   { label: 'Tiêu chí 1', desc: 'Chưa đặt tên.' },
   { label: 'Tiêu chí 2', desc: 'Chưa đặt tên.' },
@@ -699,7 +710,14 @@ export default function ProgressPage() {
                         <div
                           onClick={e => {
                             e.stopPropagation();
-                            router.push(`/quiz?subject=${encodeURIComponent(item.label)}`);
+                            const prefix = SUBJECT_PREFIX_MAP[item.label];
+                            if (prefix) {
+                              // Chuyển sang trang trung gian để lọc các đề có ID bắt đầu bằng prefix này
+                              router.push(`/exams/subject?prefix=${prefix}&title=${encodeURIComponent(item.label)}`);
+                            } else {
+                              // Nếu môn đó chưa có ID (ví dụ môn GDCD, Tin học) -> Đẩy về trang tổng và dùng query để lọc
+                              router.push(`/exams?subject=${encodeURIComponent(item.label)}`);
+                            }
                           }}
                           className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
                           title={`Kiểm tra môn ${item.label}`}

@@ -171,14 +171,19 @@ function ArticlesContent() {
         const load = async () => {
             try {
                 setIsLoading(true);
-                const [artData, accData] = await Promise.all([fetchArticles(), fetchAccounts()]);
+                
+                // Tải danh sách tài liệu (quan trọng)
+                const artData = await fetchArticles();
+                
+                // Tải danh sách tài khoản (không quan trọng, chỉ để hiện thống kê) - không chặn hiển thị nếu lỗi
+                fetchAccounts().then(accData => setAccounts(accData)).catch(err => console.warn('Failed to load accounts stats:', err));
+
                 const sorted = artData.sort((a, b) => {
                     const tA = parseVNDateToDate(a.SubmissionDate)?.getTime() || 0;
                     const tB = parseVNDateToDate(b.SubmissionDate)?.getTime() || 0;
                     return tB - tA;
                 });
                 setArticles(sorted);
-                setAccounts(accData);
             } catch { setError('Không thể tải tài liệu. Vui lòng thử lại.'); }
             finally { setIsLoading(false); }
         };

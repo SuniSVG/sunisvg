@@ -148,7 +148,7 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                         <h1 className="text-base font-bold text-gray-900 truncate">{currentUser['Tên tài khoản']}</h1>
                         <p className="text-xs text-gray-500 mb-1 truncate">THPT Chuyên Sư Phạm</p>
                         <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold shadow-sm shadow-orange-200">
-                            Level {currentUser['Đặc biệt']?.split(' - ')[0] || 1}
+                            Level {1}
                         </div>
                     </div>
                     <Link href={`/profile/${currentUser.Email}`} onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -190,13 +190,7 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
 
                 {/* Menu List */}
                 <div className="space-y-0.5">
-                    <Link href="/download" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <Download className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Tải về phiên bản Windows</span>
-                        <span className="px-1.5 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-bold rounded uppercase">Mới</span>
-                    </Link>
+
                     
                     <Link href="/orders" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
@@ -214,23 +208,7 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                         <ChevronRight className="w-4 h-4 text-gray-300" />
                     </Link>
 
-                    <Link href="/subjects" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <BookOpen className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Cập nhật môn học quan tâm</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </Link>
-
                     <div className="h-px bg-gray-100 my-1 mx-3"></div>
-
-                    <button onClick={() => setShowPasswordModal(true)} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group text-left">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <Lock className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Đổi mật khẩu</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </button>
 
                     <Link href="/settings" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
@@ -240,19 +218,11 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                         <ChevronRight className="w-4 h-4 text-gray-300" />
                     </Link>
 
-                    <button className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group text-left">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <Type className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Thay đổi cỡ chữ</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </button>
-
                     <Link href="/support" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                             <MessageCircle className="w-4 h-4" />
                         </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Chat hỗ trợ</span>
+                        <span className="font-medium text-gray-700 text-sm flex-1">Trung tâm hỗ trợ</span>
                         <ChevronRight className="w-4 h-4 text-gray-300" />
                     </Link>
 

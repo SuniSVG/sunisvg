@@ -41,7 +41,13 @@ const ExamCard = ({ quiz }: { quiz: UserQuiz }) => {
     const isFree = quiz.isFree;
     const questionCount = quiz.questions.length;
     const timeLimit = quiz.timeLimit || 0;
-    const attempts = quiz.attemptsCount || 0;
+
+    // Tính toán số liệu thực tế từ mảng results
+    const results = Array.isArray(quiz.results) ? quiz.results : [];
+    const realAttempts = results.length;
+    
+    const totalScore = results.reduce((sum, r) => sum + (Number(r.score) || 0), 0);
+    const avgScore = realAttempts > 0 ? (totalScore / realAttempts).toFixed(1) : null;
 
     const formatTime = (minutes: number): string => {
         if (!minutes) return 'Không giới hạn';
@@ -100,11 +106,17 @@ const ExamCard = ({ quiz }: { quiz: UserQuiz }) => {
                     </div>
                     <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5">
                         <Users className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="text-xs font-medium text-gray-600">{attempts.toLocaleString()} lượt</span>
+                        <span className="text-xs font-medium text-gray-600">{realAttempts.toLocaleString()} lượt</span>
                     </div>
                     <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5">
-                        <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400 shrink-0" />
-                        <span className="text-xs font-medium text-gray-600">{quiz.difficulty || 'TB'}</span>
+                        {avgScore !== null ? (
+                            <TrendingUp className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        ) : (
+                            <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400 shrink-0" />
+                        )}
+                        <span className="text-xs font-medium text-gray-600">
+                            {avgScore !== null ? `TB: ${avgScore}đ` : (quiz.difficulty || 'TB')}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -159,6 +171,16 @@ const SidebarLink = ({ icon: IconComp, label, active = false, count, onClick }: 
     </button>
 );
 
+const MOCK_SUBJECT_EXAMS: UserQuiz[] = [
+    { quizId: '99999991', title: 'Đề thi Toán học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Toán', questions: Array(50).fill({}), timeLimit: 90, isFree: true, attemptsCount: 1205, difficulty: 'Khó', category: 'Toán học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
+    { quizId: '99999992', title: 'Đề thi Ngữ văn - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Ngữ văn', questions: Array(40).fill({}), timeLimit: 120, isFree: true, attemptsCount: 980, difficulty: 'Trung bình', category: 'Ngữ văn Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
+    { quizId: '99999993', title: 'Đề thi Tiếng Anh - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Tiếng Anh', questions: Array(50).fill({}), timeLimit: 60, isFree: true, attemptsCount: 1500, difficulty: 'Trung bình', category: 'Tiếng Anh Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
+    { quizId: '99999994', title: 'Đề thi Hóa học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Hóa học', questions: Array(40).fill({}), timeLimit: 50, isFree: true, attemptsCount: 850, difficulty: 'Khó', category: 'Hóa học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
+    { quizId: '99999995', title: 'Đề thi Sinh học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Sinh học', questions: Array(40).fill({}), timeLimit: 50, isFree: true, attemptsCount: 720, difficulty: 'Trung bình', category: 'Sinh học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
+    { quizId: '99999996', title: 'Đề thi Lịch sử - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Lịch sử', questions: Array(40).fill({}), timeLimit: 50, isFree: true, attemptsCount: 650, difficulty: 'Trung bình', category: 'Lịch sử Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
+    { quizId: '99999997', title: 'Đề thi Địa lý - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Địa lý', questions: Array(40).fill({}), timeLimit: 50, isFree: true, attemptsCount: 600, difficulty: 'Trung bình', category: 'Địa lý Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
+];
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ExamsDashboard() {
@@ -178,16 +200,24 @@ export default function ExamsDashboard() {
             setIsLoading(true);
             try {
                 const [allQuizzes, allAccounts] = await Promise.all([
-                    fetchAllQuizzes(),
-                    fetchAccounts()
+                    fetchAllQuizzes().catch(() => []), // Nếu lỗi tải sheet, vẫn trả về mảng rỗng để hiện đề có sẵn
+                    fetchAccounts().catch(() => [])
                 ]);
-                setQuizzes(allQuizzes);
+
+                const uniqueFetchedMap = new Map();
+                allQuizzes.forEach(q => {
+                    if (q.quizId) uniqueFetchedMap.set(String(q.quizId).trim(), q);
+                });
+                MOCK_SUBJECT_EXAMS.forEach(m => uniqueFetchedMap.delete(String(m.quizId).trim()));
+                setQuizzes([...MOCK_SUBJECT_EXAMS, ...Array.from(uniqueFetchedMap.values()) as UserQuiz[]]);
                 const sortedAccounts = [...allAccounts]
                     .sort((a, b) => (b['Tổng số câu hỏi đã làm đúng'] || 0) - (a['Tổng số câu hỏi đã làm đúng'] || 0))
                     .slice(0, 5);
                 setLeaderboard(sortedAccounts);
             } catch (error) {
                 console.error('Failed to load exams data:', error);
+                // Nếu lỗi toàn bộ, vẫn hiện đề có sẵn
+                setQuizzes(MOCK_SUBJECT_EXAMS);
             } finally {
                 setIsLoading(false);
             }

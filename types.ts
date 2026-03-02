@@ -9,12 +9,10 @@ export interface Account {
   'Tên tài khoản': string;
   Email: string;
   'Mật khẩu': string;
-  'Gói đăng ký'?: string;
+  'Voucher'?: string;
   'Danh hiệu'?: string;
   'Đã xác minh'?: string;
   'Vai trò'?: string;
-  'Đặc biệt'?: string;
-  'Phái'?: string;
   'Tuổi'?: number;
   'Tổng số câu hỏi đã làm'?: number;
   'Tổng số câu hỏi đã làm đúng'?: number;
@@ -28,7 +26,6 @@ export interface Account {
   AvatarURL?: string;
   'Thông tin mô tả'?: string;
   'Môn học'?: string;
-  Owned?: string;
   Goal?: string;
   'Tiêu chí 1'?: string | null;
   'Tiêu chí 2'?: string | null;

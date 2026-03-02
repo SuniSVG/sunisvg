@@ -1,7 +1,7 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxftv13N3l1cRuk-gBB6cN9T4w0fy3QwQS-L87x2m0XYDCJ0FveCj3nJO141qTXeyWB/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxssaNLFx3dBFCZwUrXKHAnDKuWL5eZDxa1RDiZEEP8FSqh_bx73oWpfeUMl4OlsUjK/exec';
 
 // --- Caching Layer ---
 interface CacheEntry<T> {
@@ -22,47 +22,50 @@ const postToAppsScript = async (payload: { [key: string]: any }, retries = 2): P
   try {
     const response = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload),
-      redirect: 'follow', // Explicitly follow redirects
+      redirect: 'follow',
     });
 
     const responseText = await response.text();
     if (!responseText) {
-        if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return postToAppsScript(payload, retries - 1);
-        }
-        throw new Error('Máy chủ không phản hồi. Vui lòng thử lại sau.');
+      if (retries > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return postToAppsScript(payload, retries - 1);
+      }
+      throw new Error('Máy chủ không phản hồi. Vui lòng thử lại sau.');
     }
 
     let result;
     try {
-        result = JSON.parse(responseText);
+      result = JSON.parse(responseText);
     } catch (e) {
-        console.error('Failed to parse response as JSON:', responseText);
-        throw new Error('Phản hồi từ máy chủ không đúng định dạng.');
+      console.error('Failed to parse response as JSON:', responseText);
+      throw new Error('Phản hồi từ máy chủ không đúng định dạng.');
     }
 
-    if (!response.ok || result.status === 'error') {
-        const errorMessage = result?.message || `Lỗi máy chủ: ${response.status}`;
-        throw new Error(errorMessage);
+    // ✅ Nếu server trả về status error (business logic) → KHÔNG retry, trả về luôn
+    if (result.status === 'error') {
+      return result; // Để caller tự xử lý
     }
-    
+
+    if (!response.ok) {
+      throw new Error(`Lỗi máy chủ: ${response.status}`);
+    }
+
     return result;
 
   } catch (error: any) {
     console.error('Error posting to Apps Script:', error);
-    
+
+    // ✅ Chỉ retry khi lỗi NETWORK, không retry lỗi business logic
     if (retries > 0 && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        return postToAppsScript(payload, retries - 1);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      return postToAppsScript(payload, retries - 1);
     }
 
     if (error.message.includes('Failed to fetch')) {
-        throw new Error('Không thể kết nối tới máy chủ SuniSVG. Vui lòng kiểm tra lại đường truyền hoặc thử lại sau ít phút.');
+      throw new Error('Không thể kết nối tới máy chủ. Vui lòng kiểm tra lại đường truyền hoặc thử lại sau ít phút.');
     }
     throw new Error(error.message || 'Yêu cầu tới máy chủ thất bại.');
   }
@@ -145,6 +148,36 @@ export const createClass = async (classData: { className: string; subject: strin
             throw new Error(result.message || 'Lỗi không xác định từ máy chủ khi tạo lớp.');
         }
         return { success: true, classId: result.classId, joinCode: result.joinCode };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const fetchVouchers = async (): Promise<any[]> => {
+    try {
+        const rawVouchers = await fetchDataFromAppsScript<any>('Vouchers');
+        return rawVouchers.map((v: any) => ({
+            Code: String(v['Code'] || '').trim(),
+            Title: String(v['Title'] || '').trim(),
+            Description: String(v['Description'] || '').trim(),
+            Discount: String(v['Discount'] || '').trim(),
+            ExpiryDate: String(v['ExpiryDate'] || '').trim(),
+            Status: String(v['Status'] || '').trim(),
+        }));
+    } catch (error) {
+        console.error("Failed to fetch vouchers:", error);
+        return [];
+    }
+};
+
+export const redeemVoucher = async (email: string, code: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'redeemVoucher',
+            email,
+            code
+        });
+        return { success: result.status === 'success', error: result.message };
     } catch (error: any) {
         return { success: false, error: error.message };
     }
@@ -549,6 +582,7 @@ return rawAccounts.map((acc: any) => ({
     'Môn học': String(acc['Môn học'] || '').trim(),
     'Owned': String(acc['Owned'] || '').trim(),
     'Goal': String(acc['Goal'] || '').trim(),
+    'Voucher': String(acc['Voucher'] || '').trim(),
     'Tiêu chí 1': acc['Tiêu chí 1'] ?? null,
     'Tiêu chí 2': acc['Tiêu chí 2'] ?? null,
     'Tiêu chí 3': acc['Tiêu chí 3'] ?? null,
@@ -1152,6 +1186,19 @@ export const updateCriterion = async (email: string, index: number, label: strin
             score
         });
         return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const activateVoucher = async (email: string, code: string): Promise<{ success: boolean; error?: string; newBalance?: number }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'activateVoucher',
+            email,
+            code
+        });
+        return { success: result.status === 'success', error: result.message, newBalance: result.newBalance };
     } catch (error: any) {
         return { success: false, error: error.message };
     }
