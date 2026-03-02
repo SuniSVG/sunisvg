@@ -1,10 +1,9 @@
 'use client';
 
 import React, { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
-import { fetchAccounts, registerUser, resendVerificationEmail as resendVerificationEmailService, fetchArticles, updateUserQuizStats, updateUserLevel, updateUserTitle, updateStudyTime, requestPasswordReset as requestPasswordResetService, resetPasswordWithOTP as resetPasswordWithOTPService, updateUsername as updateUsernameService, updatePassword as updatePasswordService, getAccountByEmail } from '@/services/googleSheetService';
+import { fetchAccounts, registerUser, resendVerificationEmail as resendVerificationEmailService, updateUserQuizStats, updateStudyTime, requestPasswordReset as requestPasswordResetService, resetPasswordWithOTP as resetPasswordWithOTPService, updateUsername as updateUsernameService, updatePassword as updatePasswordService, getAccountByEmail } from '@/services/googleSheetService';
 import type { Account } from '@/types';
 import { useToast } from './ToastContext';
-import { getUserBadges } from '@/utils/badgeUtils';
 
 interface LoginResult {
   success: boolean;
@@ -28,8 +27,6 @@ interface AuthContextType {
   resetPasswordWithOTP: (email: string, otp: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
   updateUserStats: (attempted: number, correct: number) => void;
   deductTokensForPractice: () => void;
-  updateFaction: (faction: 'Chính Đạo' | 'Tà Đạo') => void;
-  updateLevel: (level: number, totalLevels: number) => void;
   isStudying: boolean;
   sessionStartTime: number | null;
   startStudySession: () => void;
@@ -344,82 +341,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .catch(err => {
              console.error("Error calling updateUserQuizStats service:", err);
         });
-        
-    // 3. Recalculate badge and update title if changed
-    try {
-        // We need all articles to calculate research badges
-        const allArticles = await fetchArticles();
-        const userArticles = allArticles.filter(art => art.SubmitterEmail.toLowerCase() === userToUpdate.Email.toLowerCase());
-        
-        const { displayBadges } = getUserBadges(updatedUserForStats, userArticles);
-        const highestBadge = displayBadges[0];
-
-        // The earned title is stored in 'Gói đăng ký'
-        if (highestBadge && highestBadge.name !== updatedUserForStats['Gói đăng ký']) {
-            // Title has changed, update it in the backend
-            const titleUpdateResult = await updateUserTitle(userToUpdate.Email, highestBadge.name);
-
-            if (titleUpdateResult.success) {
-                // 4. Final update to local state with new title
-                const finalUpdatedUser: Account = {
-                    ...updatedUserForStats,
-                    'Gói đăng ký': highestBadge.name,
-                };
-                setCurrentUser(finalUpdatedUser);
-                sessionStorage.setItem('currentUser', JSON.stringify(finalUpdatedUser));
-                showToast(`Danh hiệu của bạn đã được cập nhật: ${highestBadge.name}`, 'success');
-            } else {
-                console.error("Failed to update user title in backend:", titleUpdateResult.error);
-            }
-        }
-    } catch (error) {
-        console.error("Failed to update user title after stats change:", error);
-    }
   }, [showToast]);
 
   const deductTokensForPractice = useCallback(() => {
     showToast('Chức năng token đang được bảo trì. Lần luyện tập này miễn phí!', 'info');
     // Temporarily disabled as per user request. No tokens will be deducted.
   }, [showToast]);
-
-  const updateFaction = useCallback((faction: 'Chính Đạo' | 'Tà Đạo') => {
-    setCurrentUser(prevUser => {
-        if (!prevUser) return null;
-        if (prevUser['Phái'] === faction) return prevUser; // No change needed
-
-        const updatedUser = { ...prevUser, 'Phái': faction };
-        sessionStorage.setItem('currentUser', JSON.stringify(updatedUser));
-        
-        // This is a client-side only update. If a backend were involved, an API call would go here.
-        // For now, it persists in the session.
-
-        showToast(`Bạn đã chọn con đường ${faction}. Danh hiệu của bạn sẽ được cập nhật.`, 'success');
-        return updatedUser;
-    });
-  }, [showToast]);
-  
-  const updateLevel = useCallback((level: number, totalLevels: number) => {
-    setCurrentUser(prevUser => {
-      if (!prevUser) return null;
-
-      const levelString = `${level} - ${totalLevels}`;
-      const updatedUser: Account = { ...prevUser, 'Đặc biệt': levelString };
-      sessionStorage.setItem('currentUser', JSON.stringify(updatedUser));
-      
-      updateUserLevel(prevUser.Email, levelString)
-        .then(response => {
-            if (!response.success) {
-                console.error("Failed to sync level to backend:", response.error);
-                // Optional: Revert UI or show toast. For now, just log.
-            }
-        })
-        .catch(err => {
-             console.error("Error calling updateUserLevel service:", err);
-        });
-        
-      return updatedUser;
-    });
-  }, []);
 
   const refreshCurrentUser = useCallback(async (options?: { silent?: boolean }): Promise<Account | null> => {
     const userInSession = JSON.parse(sessionStorage.getItem('currentUser') || 'null');
@@ -453,8 +380,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     resetPasswordWithOTP,
     updateUserStats,
     deductTokensForPractice,
-    updateFaction,
-    updateLevel,
     isStudying,
     sessionStartTime,
     startStudySession,
