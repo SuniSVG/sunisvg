@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'motion/react';
@@ -110,7 +110,7 @@ const ExamCard = ({ quiz }: { quiz: UserQuiz }) => {
     );
 };
 
-export default function SubjectExamsPage() {
+function SubjectExamsContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const prefix = searchParams.get('prefix');
@@ -197,5 +197,17 @@ export default function SubjectExamsPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function SubjectExamsPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        }>
+            <SubjectExamsContent />
+        </Suspense>
     );
 }
