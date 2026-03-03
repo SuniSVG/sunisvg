@@ -16,14 +16,11 @@ export default function Header() {
             SuniSVG
           </Link>
           <nav className="hidden lg:flex items-center h-full gap-1">
-            <Link href="/" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
-              Trang chủ
-            </Link>
             <Link href="/articles" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Thư viện
             </Link>
-            <Link href="/books" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
-              Sách ID
+            <Link href="/virtual" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
+              PLTA.svg
             </Link>
             <Link href="/courses" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Khoá học
@@ -45,7 +42,7 @@ export default function Header() {
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Tìm Sách ID, khoá học..." 
+              placeholder="Tìm kiếm khoá học, bài thi..." 
               className="w-full h-10 pl-10 pr-4 rounded-full border-none focus:ring-2 focus:ring-green-400 text-sm text-white bg-green-700 placeholder-green-200"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -58,8 +55,8 @@ export default function Header() {
                   if (isNumeric) {
                     if (val.startsWith('2')) {
                       window.location.href = `/courses/${val}`;
-                    } else if (val.startsWith('1') || val.startsWith('9')) {
-                      window.location.href = `/article/${val}`;
+                    } else if (parseInt(val, 10) < 1000000) {
+                      window.location.href = `/questions/${val}`;
                     } else {
                       // For other numbers, search generally
                       window.location.href = `/search?q=${encodeURIComponent(val)}`;
@@ -78,10 +75,6 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
-          <Link href="/activate" className="hidden lg:flex items-center justify-center text-sm font-bold bg-lime-400 text-green-900 px-4 py-2 rounded-full hover:bg-lime-500 transition-colors shadow-sm whitespace-nowrap">
-            Kích hoạt Sách ID
-          </Link>
-          
           {currentUser ? (
             <>
               <div className="hidden lg:flex items-center gap-2 text-sm font-bold bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm whitespace-nowrap">

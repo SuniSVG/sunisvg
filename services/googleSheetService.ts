@@ -1,7 +1,7 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxssaNLFx3dBFCZwUrXKHAnDKuWL5eZDxa1RDiZEEP8FSqh_bx73oWpfeUMl4OlsUjK/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEjg26EjodazpzVfPoo-7vM_x7lk5e3nOaW8kkHMtIuLI-GuXaJgIEwJU0-S4xW8Gq/exec';
 
 // --- Caching Layer ---
 interface CacheEntry<T> {
@@ -299,15 +299,15 @@ export const purchasePremiumCategory = async (userEmail: string, categoryName: s
 };
 
 const mapBankQuestionToMedicalQuestion = (raw: any): MedicalQuestion => ({
-    ID: raw.id || Math.random().toString(36).substring(7),
-    Question_Text: raw.question || '',
+    ID: raw.ID || raw.id || Math.random().toString(36).substring(7),
+    Question_Text: raw['Câu hỏi'] || raw.question || '',
     Option_A: raw.A || '',
     Option_B: raw.B || '',
     Option_C: raw.C || '',
     Option_D: raw.D || '',
-    Correct_Answer: (raw.correct || '').trim().toUpperCase() as 'A' | 'B' | 'C' | 'D',
-    Explanation: raw.explanation || '',
-    Specialty: raw.subject || '', // Using specialty to hold the subject
+    Correct_Answer: (raw['Đúng'] || raw.correct || '').trim().toUpperCase() as 'A' | 'B' | 'C' | 'D',
+    Explanation: raw['Lời giải'] || raw.explanation || '',
+    Specialty: raw['Môn'] || raw.subject || '', // Using specialty to hold the subject
     Paragraph: undefined, 
     GroupID: undefined,
     Image_URL: raw.Image_URL || undefined,
@@ -409,7 +409,7 @@ export const fetchQuizQuestions = async (subject: string, config?: { questions: 
 
         if (targetSubjects.length > 0) {
             questionsFromBank = bankQuestions.filter(q => 
-                targetSubjects.includes((q.Specialty || '').trim().toLowerCase())
+                targetSubjects.some(s => (q.Specialty || '').trim().toLowerCase().includes(s))
             );
         }
     } catch (e) {
@@ -431,9 +431,6 @@ export const fetchQuizQuestions = async (subject: string, config?: { questions: 
             break;
         case 'sinh':
             questionsFromOldSheets = await fetchMedicineQuestions();
-            break;
-        case 'toan':
-            questionsFromOldSheets = await fetchMathQuestions();
             break;
         case 'van':
             questionsFromOldSheets = await fetchLiteratureQuestions();

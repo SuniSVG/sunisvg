@@ -85,15 +85,6 @@ const QuestionGridItem = ({
     </button>
 );
 
-const MOCK_SUBJECT_EXAMS: Record<string, UserQuiz> = {
-    '9999991': { quizId: '9999991', title: 'Đề thi Toán học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Toán', questions: Array(50).fill({ questionText: 'Câu hỏi mẫu môn Toán...', options: [{text: 'A'}, {text: 'B'}, {text: 'C'}, {text: 'D'}], correctAnswerIndex: 0 }), timeLimit: 90, isFree: true, attemptsCount: 1205, difficulty: 'Khó', category: 'Toán học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    '9999992': { quizId: '9999992', title: 'Đề thi Ngữ văn - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Ngữ văn', questions: Array(40).fill({ questionText: 'Câu hỏi mẫu môn Ngữ văn...', options: [{text: 'A'}, {text: 'B'}, {text: 'C'}, {text: 'D'}], correctAnswerIndex: 0 }), timeLimit: 120, isFree: true, attemptsCount: 980, difficulty: 'Trung bình', category: 'Ngữ văn Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    '9999993': { quizId: '9999993', title: 'Đề thi Tiếng Anh - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Tiếng Anh', questions: Array(50).fill({ questionText: 'Câu hỏi mẫu môn Tiếng Anh...', options: [{text: 'A'}, {text: 'B'}, {text: 'C'}, {text: 'D'}], correctAnswerIndex: 0 }), timeLimit: 60, isFree: true, attemptsCount: 1500, difficulty: 'Trung bình', category: 'Tiếng Anh Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    '9999994': { quizId: '9999994', title: 'Đề thi Hóa học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Hóa học', questions: Array(40).fill({ questionText: 'Câu hỏi mẫu môn Hóa học...', options: [{text: 'A'}, {text: 'B'}, {text: 'C'}, {text: 'D'}], correctAnswerIndex: 0 }), timeLimit: 50, isFree: true, attemptsCount: 850, difficulty: 'Khó', category: 'Hóa học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    '9999995': { quizId: '9999995', title: 'Đề thi Sinh học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Sinh học', questions: Array(40).fill({ questionText: 'Câu hỏi mẫu môn Sinh học...', options: [{text: 'A'}, {text: 'B'}, {text: 'C'}, {text: 'D'}], correctAnswerIndex: 0 }), timeLimit: 50, isFree: true, attemptsCount: 720, difficulty: 'Trung bình', category: 'Sinh học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    '9999996': { quizId: '9999996', title: 'Đề thi Lịch sử - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Lịch sử', questions: Array(40).fill({ questionText: 'Câu hỏi mẫu môn Lịch sử...', options: [{text: 'A'}, {text: 'B'}, {text: 'C'}, {text: 'D'}], correctAnswerIndex: 0 }), timeLimit: 50, isFree: true, attemptsCount: 650, difficulty: 'Trung bình', category: 'Lịch sử Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    '9999997': { quizId: '9999997', title: 'Đề thi Địa lý - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Địa lý', questions: Array(40).fill({ questionText: 'Câu hỏi mẫu môn Địa lý...', options: [{text: 'A'}, {text: 'B'}, {text: 'C'}, {text: 'D'}], correctAnswerIndex: 0 }), timeLimit: 50, isFree: true, attemptsCount: 600, difficulty: 'Trung bình', category: 'Địa lý Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-};
 
 // --- Main Page ---
 
@@ -135,15 +126,6 @@ export default function ExamRoom() {
         const loadQuiz = async () => {
             if (!quizId) return;
             setIsLoading(true);
-
-            // 1. Ưu tiên dữ liệu có sẵn (Mock) để không phải tải từ sheet
-            if (MOCK_SUBJECT_EXAMS[quizId]) {
-                const data = MOCK_SUBJECT_EXAMS[quizId];
-                setQuiz(data);
-                setTimeLeft((data.timeLimit || 90) * 60);
-                setIsLoading(false);
-                return;
-            }
 
             try {
                 const data = await fetchUserQuiz(quizId);

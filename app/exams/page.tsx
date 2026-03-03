@@ -20,7 +20,8 @@ import {
     RotateCcw,
     Flame,
     BookOpen,
-    Target
+    Target,
+    BarChart2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,9 +36,13 @@ import {
 } from 'recharts';
 import MathRenderer from '@/components/shared/MathRenderer';
 
+// ─── Mock Data ───────────────────────────────────────────────────────────────
+
+const MOCK_SUBJECT_EXAMS: UserQuiz[] = [];
+
 // ─── ExamCard ───────────────────────────────────────────────────────────────
 
-const ExamCard = ({ quiz }: { quiz: UserQuiz }) => {
+const ExamCard = ({ quiz, isExpanded, onToggleExpand }: { quiz: UserQuiz; isExpanded: boolean; onToggleExpand: () => void }) => {
     const isFree = quiz.isFree;
     const questionCount = quiz.questions.length;
     const timeLimit = quiz.timeLimit || 0;
@@ -48,6 +53,11 @@ const ExamCard = ({ quiz }: { quiz: UserQuiz }) => {
     
     const totalScore = results.reduce((sum, r) => sum + (Number(r.score) || 0), 0);
     const avgScore = realAttempts > 0 ? (totalScore / realAttempts).toFixed(1) : null;
+
+    const topResults = useMemo(() => {
+        const res = Array.isArray(quiz.results) ? quiz.results : [];
+        return [...res].sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0)).slice(0, 7);
+    }, [quiz.results]);
 
     const formatTime = (minutes: number): string => {
         if (!minutes) return 'Không giới hạn';
@@ -121,15 +131,25 @@ const ExamCard = ({ quiz }: { quiz: UserQuiz }) => {
                 </div>
             </div>
 
-            <div className="px-5 pb-5">
+            <div className="px-5 pb-5 space-y-2">
                 {isFree ? (
-                    <Link
-                        href={`/exams/take/${quiz.quizId}`}
-                        className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 hover:from-green-600 hover:to-emerald-700 transition-all shadow-md shadow-green-100 text-sm"
-                    >
-                        Vào thi ngay
-                        <ArrowRight className="w-4 h-4" />
-                    </Link>
+                    <>
+                        <Link
+                            href={`/exams/take/${quiz.quizId}`}
+                            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 hover:from-green-600 hover:to-emerald-700 transition-all shadow-md shadow-green-100 text-sm"
+                        >
+                            Vào thi ngay
+                            <ArrowRight className="w-4 h-4" />
+                        </Link>
+                        <button
+                            onClick={onToggleExpand}
+                            disabled={topResults.length === 0}
+                            className="w-full bg-gray-50 text-gray-600 font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-100 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <BarChart2 className="w-4 h-4" />
+                            {isExpanded ? 'Ẩn xếp hạng' : 'Xem xếp hạng'}
+                        </button>
+                    </>
                 ) : (
                     <div className="flex items-center gap-3">
                         <div className="flex-1">
@@ -142,6 +162,62 @@ const ExamCard = ({ quiz }: { quiz: UserQuiz }) => {
                     </div>
                 )}
             </div>
+
+            <AnimatePresence>
+                {isExpanded && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden border-t border-gray-100 bg-gray-50/50"
+                    >
+                        <div className="p-4">
+                            <h4 className="font-bold text-sm text-gray-800 mb-3 flex items-center gap-2">
+                                <Trophy className="w-4 h-4 text-yellow-500" />
+                                Top kết quả cao nhất
+                            </h4>
+                            <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
+                                <table className="w-full text-xs">
+                                    <thead className="bg-gray-50 text-gray-500 border-b border-gray-100">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left font-bold">#</th>
+                                            <th className="px-4 py-3 text-left font-bold">Tên</th>
+                                            <th className="px-4 py-3 text-center font-bold">Điểm</th>
+                                            <th className="px-4 py-3 text-right font-bold">Ngày</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {topResults.map((res, index) => {
+                                            const rankColor = index === 0 ? 'text-yellow-700 bg-yellow-100 ring-2 ring-yellow-50' : 
+                                                            index === 1 ? 'text-slate-700 bg-slate-100 ring-2 ring-slate-50' : 
+                                                            index === 2 ? 'text-orange-700 bg-orange-100 ring-2 ring-orange-50' : 'text-gray-500 bg-gray-50';
+                                            return (
+                                                <tr key={index} className={`transition-colors ${index < 3 ? 'bg-opacity-30 ' + (index === 0 ? 'bg-yellow-50/30' : index === 1 ? 'bg-slate-50/30' : 'bg-orange-50/30') : 'hover:bg-gray-50'}`}>
+                                                    <td className="px-4 py-3 font-bold">
+                                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${rankColor}`}>
+                                                            {index + 1}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 font-medium text-gray-900 truncate max-w-[100px]">
+                                                        {(res as any).name && (res as any).name !== 'Ẩn danh' ? (res as any).name : (res.participantEmail?.split('@')[0] || 'Ẩn danh')}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <span className="font-bold text-green-600">{res.score}</span>
+                                                        <span className="text-gray-400">/{res.totalQuestions || quiz.questions.length}</span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-gray-500">
+                                                        {res.timestamp ? new Date(res.timestamp).toLocaleDateString('vi-VN') : '--'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 };
@@ -171,16 +247,6 @@ const SidebarLink = ({ icon: IconComp, label, active = false, count, onClick }: 
     </button>
 );
 
-const MOCK_SUBJECT_EXAMS: UserQuiz[] = [
-    { quizId: '99999991', title: 'Đề thi Toán học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Toán', questions: Array(50).fill({}), timeLimit: 90, isFree: true, attemptsCount: 1205, difficulty: 'Khó', category: 'Toán học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    { quizId: '99999992', title: 'Đề thi Ngữ văn - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Ngữ văn', questions: Array(40).fill({}), timeLimit: 120, isFree: true, attemptsCount: 980, difficulty: 'Trung bình', category: 'Ngữ văn Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    { quizId: '99999993', title: 'Đề thi Tiếng Anh - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Tiếng Anh', questions: Array(50).fill({}), timeLimit: 60, isFree: true, attemptsCount: 1500, difficulty: 'Trung bình', category: 'Tiếng Anh Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    { quizId: '99999994', title: 'Đề thi Hóa học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Hóa học', questions: Array(40).fill({}), timeLimit: 50, isFree: true, attemptsCount: 850, difficulty: 'Khó', category: 'Hóa học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    { quizId: '99999995', title: 'Đề thi Sinh học - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Sinh học', questions: Array(40).fill({}), timeLimit: 50, isFree: true, attemptsCount: 720, difficulty: 'Trung bình', category: 'Sinh học Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    { quizId: '99999996', title: 'Đề thi Lịch sử - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Lịch sử', questions: Array(40).fill({}), timeLimit: 50, isFree: true, attemptsCount: 650, difficulty: 'Trung bình', category: 'Lịch sử Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-    { quizId: '99999997', title: 'Đề thi Địa lý - THPT Quốc gia', description: 'Đề thi chuẩn cấu trúc Bộ GD&ĐT môn Địa lý', questions: Array(40).fill({}), timeLimit: 50, isFree: true, attemptsCount: 600, difficulty: 'Trung bình', category: 'Địa lý Lớp 12', price: 0, authorEmail: 'admin@sunisvg.com', results: [], oneAttemptOnly: false },
-];
-
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ExamsDashboard() {
@@ -194,6 +260,11 @@ export default function ExamsDashboard() {
     const [selectedGrade, setSelectedGrade] = useState('Tất cả khối');
     const [selectedSubject, setSelectedSubject] = useState('Tất cả môn');
     const [selectedDifficulty, setSelectedDifficulty] = useState('Tất cả');
+    const [expandedQuizId, setExpandedQuizId] = useState<string | null>(null);
+
+    const toggleResults = (quizId: string) => {
+        setExpandedQuizId(prev => prev === quizId ? null : quizId);
+    };
 
     useEffect(() => {
         const loadData = async () => {
@@ -519,7 +590,14 @@ export default function ExamsDashboard() {
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <AnimatePresence mode="popLayout">
-                                            {filteredQuizzes.map(quiz => <ExamCard key={quiz.quizId} quiz={quiz} />)}
+                                            {filteredQuizzes.map(quiz => (
+                                                <ExamCard 
+                                                    key={quiz.quizId} 
+                                                    quiz={quiz} 
+                                                    isExpanded={expandedQuizId === quiz.quizId}
+                                                    onToggleExpand={() => toggleResults(quiz.quizId)}
+                                                />
+                                            ))}
                                         </AnimatePresence>
                                         {filteredQuizzes.length === 0 && (
                                             <div className="col-span-full py-16 text-center bg-white rounded-2xl border border-dashed border-gray-200">

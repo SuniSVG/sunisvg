@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, XCircle, Eye, EyeOff, AlertCircle, ShieldCheck, Check, Users, FileText, HelpCircle, GraduationCap, ArrowRight, User, Star, BookOpen, Lock, Plus, ArrowLeft, Info, X, PlayCircle, UserPlus, Bookmark, Heart, Trophy, Medal, Settings, LogOut, Search, Smartphone, Book, Monitor, Headphones, BarChart, Mail, Send, RefreshCw, Calendar, MapPin, TrendingUp, Zap, Video, Grid, Tag, Clipboard, ChevronLeft, ChevronRight, ChevronUp, Sparkles, Folder, Hash, List, Layers, MessageCircle, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, EyeOff, AlertCircle, ShieldCheck, Check, Users, FileText, HelpCircle, GraduationCap, ArrowRight, User, Star, BookOpen, Lock, Plus, ArrowLeft, Info, X, PlayCircle, UserPlus, Bookmark, Heart, Trophy, Medal, Settings, LogOut, Search, Smartphone, Book, Monitor, Headphones, BarChart, Mail, Send, RefreshCw, Calendar, MapPin, TrendingUp, Zap, Video, Grid, Tag, Clipboard, ChevronLeft, ChevronRight, ChevronUp, Sparkles, Folder, Hash, List, Layers, MessageCircle, AlertTriangle, Clock, Pause, Play, RotateCcw, Edit3, Calculator } from 'lucide-react';
 
 interface IconProps {
   name: string;
@@ -51,6 +51,7 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
     case 'information-circle':
       return <Info className={className} />;
     case 'close':
+    case 'x':
       return <X className={className} />;
     case 'play-circle':
       return <PlayCircle className={className} />;
@@ -122,6 +123,18 @@ export const Icon: React.FC<IconProps> = ({ name, className }) => {
       return <AlertTriangle className={className} />;
     case 'academic-cap':
       return <GraduationCap className={className} />;
+    case 'clock':
+      return <Clock className={className} />;
+    case 'pause':
+      return <Pause className={className} />;
+    case 'play':
+      return <Play className={className} />;
+    case 'rotate-ccw':
+      return <RotateCcw className={className} />;
+    case 'edit-3':
+      return <Edit3 className={className} />;
+    case 'calculator':
+      return <Calculator className={className} />;
     default:
       return <Check className={className} />;
   }
