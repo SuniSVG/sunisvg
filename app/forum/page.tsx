@@ -7,7 +7,6 @@ import type { ForumPost, ForumComment, Account } from '@/types';
 import { Icon } from '@/components/shared/Icon';
 import PostListItem from '@/components/shared/PostListItem';
 import { useAuth } from '@/contexts/AuthContext';
-import { parseVNDateToDate } from '@/utils/dateUtils';
 
 const FORUM_CHANNELS = [
     { name: 'Tất cả', icon: 'grid', color: 'from-emerald-500 to-orange-500' },
@@ -27,6 +26,32 @@ const FORUM_CHANNELS = [
 ];
 
 type SortByType = 'new' | 'top';
+
+const parseForumDate = (dateStr: string | undefined): Date => {
+    if (!dateStr) return new Date(0);
+    
+    // Handle format: HH:mm:ss dd/MM/yyyy (e.g., 13:10:12 11/9/2025)
+    // This matches the sample data provided: "13:10:12 11/9/2025"
+    const timeDateRegex = /^(\d{1,2}):(\d{1,2}):(\d{1,2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    const match = dateStr.trim().match(timeDateRegex);
+    
+    if (match) {
+        const [_, h, m, s, day, month, year] = match;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
+    }
+
+    // Handle format: dd/MM/yyyy HH:mm:ss (Standard VN)
+    const dateTimeRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})$/;
+    const match2 = dateStr.trim().match(dateTimeRegex);
+    
+    if (match2) {
+        const [_, day, month, year, h, m, s] = match2;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
+    }
+
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date(0) : d;
+};
 
 export default function ForumPage() {
     const [posts, setPosts] = useState<ForumPost[]>([]);
@@ -87,8 +112,8 @@ export default function ForumPage() {
 
         if (sortBy === 'new') {
             return [...filtered].sort((a, b) => {
-                const timeA = parseVNDateToDate(a.Timestamp)?.getTime() || 0;
-                const timeB = parseVNDateToDate(b.Timestamp)?.getTime() || 0;
+                const timeA = parseForumDate(a.Timestamp).getTime();
+                const timeB = parseForumDate(b.Timestamp).getTime();
                 return timeB - timeA;
             });
         }
@@ -108,8 +133,8 @@ export default function ForumPage() {
                     return commentsB - commentsA;
                 }
                 
-                const timeA = parseVNDateToDate(a.Timestamp)?.getTime() || 0;
-                const timeB = parseVNDateToDate(b.Timestamp)?.getTime() || 0;
+                const timeA = parseForumDate(a.Timestamp).getTime();
+                const timeB = parseForumDate(b.Timestamp).getTime();
                 return timeB - timeA;
             });
         }
@@ -358,7 +383,10 @@ export default function ForumPage() {
                                     {paginatedPosts.map(post => (
                                         <div key={post.ID} className="transform hover:scale-[1.02] transition-all duration-300">
                                             <PostListItem
-                                                post={post}
+                                                post={{
+                                                    ...post,
+                                                    Timestamp: parseForumDate(post.Timestamp).toISOString()
+                                                }}
                                                 commentCount={commentCounts.get(post.ID) || 0}
                                                 currentUserEmail={currentUser?.Email || null}
                                                 onUpdate={handlePostUpdate}

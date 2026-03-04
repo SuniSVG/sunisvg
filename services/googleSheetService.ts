@@ -13,6 +13,22 @@ const cache = new Map<string, CacheEntry<any>>();
 const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes cache
 const revalidationRequests = new Map<string, Promise<any>>();
 
+// --- LocalStorage Cache Helpers ---
+const getLocalCache = <T>(key: string): CacheEntry<T> | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const item = localStorage.getItem(`edifyx_cache_${key}`);
+        return item ? JSON.parse(item) : null;
+    } catch { return null; }
+};
+
+const setLocalCache = <T>(key: string, data: CacheEntry<T>) => {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(`edifyx_cache_${key}`, JSON.stringify(data));
+    } catch (e) { console.warn('LocalStorage full', e); }
+};
+
 /**
  * Submits data to Google Apps Script using a robust fetch implementation.
  * @param payload The data object to send. It must include an 'action' property.
@@ -73,19 +89,30 @@ const postToAppsScript = async (payload: { [key: string]: any }, retries = 2): P
 
 const fetchDataFromAppsScript = async <T,>(sheetName: string, ignoreCache: boolean = false): Promise<T[]> => {
   const cacheKey = `post:${sheetName}`;
-  const cachedEntry = cache.get(cacheKey);
+  
+  // 1. Check Memory Cache
+  let cachedEntry = cache.get(cacheKey);
+
+  // 2. If not in memory, check LocalStorage (Persistent Cache)
+  if (!cachedEntry && !ignoreCache) {
+      cachedEntry = getLocalCache<T>(cacheKey) || undefined;
+      if (cachedEntry) {
+          cache.set(cacheKey, cachedEntry); // Promote to memory
+      }
+  }
 
   // Stale-While-Revalidate Implementation
   if (cachedEntry && !ignoreCache) {
     const isStale = Date.now() - cachedEntry.timestamp > CACHE_DURATION;
     if (isStale && !revalidationRequests.has(cacheKey)) {
-        // Start a background fetch, but don't wait for it.
         const revalidationPromise = postToAppsScript({
             action: 'getSheetData',
             sheetName: sheetName,
         }).then(result => {
             if (result.status === 'success' && Array.isArray(result.data)) {
-                cache.set(cacheKey, { data: result.data, timestamp: Date.now() });
+                const newEntry = { data: result.data, timestamp: Date.now() };
+                cache.set(cacheKey, newEntry);
+                setLocalCache(cacheKey, newEntry); // Persist to LocalStorage
             }
         }).catch(error => {
             console.error(`Background revalidation for ${sheetName} failed:`, error);
@@ -107,7 +134,9 @@ const fetchDataFromAppsScript = async <T,>(sheetName: string, ignoreCache: boole
     });
     
     if (result.status === 'success' && Array.isArray(result.data)) {
-      cache.set(cacheKey, { data: result.data, timestamp: Date.now() });
+      const newEntry = { data: result.data, timestamp: Date.now() };
+      cache.set(cacheKey, newEntry);
+      setLocalCache(cacheKey, newEntry); // Persist to LocalStorage
       return result.data as T[];
     }
     
@@ -676,7 +705,7 @@ return rawPosts.map((p: any) => ({
     AuthorEmail: String(p.AuthorEmail || '').trim(),
     AuthorName: String(p.AuthorName || '').trim(),
     Channel: String(p.Channel || '').trim(),
-    Timestamp: String(p.Timestamp || '').trim(),
+    Timestamp: String(p.Timestamp || p.TimeStamp || '').trim(),
     Upvotes: String(p.Upvotes || '').trim(),
     UpvotedBy: String(p.UpvotedBy || '').trim(),
 }));
@@ -691,7 +720,7 @@ return rawComments.map((c: any) => ({
     Content: String(c.Content || '').trim(),
     AuthorEmail: String(c.AuthorEmail || '').trim(),
     AuthorName: String(c.AuthorName || '').trim(),
-    Timestamp: String(c.Timestamp || '').trim(),
+    Timestamp: String(c.Timestamp || c.TimeStamp || '').trim(),
 }));
 };
 

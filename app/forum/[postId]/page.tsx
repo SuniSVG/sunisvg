@@ -9,7 +9,7 @@ import type { ForumPost, ForumComment, Account } from '@/types';
 import { Icon } from '@/components/shared/Icon';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { timeAgo, parseVNDateToDate } from '@/utils/dateUtils';
+import { timeAgo } from '@/utils/dateUtils';
 import 'katex/dist/katex.min.css';
 
 const InlineMath = dynamic(() => import('react-katex').then(mod => mod.InlineMath), { ssr: false });
@@ -44,6 +44,31 @@ const MathRenderer = React.memo(({ text }: { text: string }) => {
   );
 });
 MathRenderer.displayName = 'MathRenderer';
+
+const parseForumDate = (dateStr: string | undefined): Date => {
+    if (!dateStr) return new Date(0);
+    
+    // Handle format: HH:mm:ss dd/MM/yyyy (e.g., 13:10:12 11/9/2025)
+    const timeDateRegex = /^(\d{1,2}):(\d{1,2}):(\d{1,2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    const match = dateStr.trim().match(timeDateRegex);
+    
+    if (match) {
+        const [_, h, m, s, day, month, year] = match;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
+    }
+
+    // Handle format: dd/MM/yyyy HH:mm:ss (Standard VN)
+    const dateTimeRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})$/;
+    const match2 = dateStr.trim().match(dateTimeRegex);
+    
+    if (match2) {
+        const [_, day, month, year, h, m, s] = match2;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
+    }
+
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date(0) : d;
+};
 
 export default function PostDetailPage({ params }: { params: Promise<{ postId: string }> }) {
     const resolvedParams = use(params);
@@ -150,9 +175,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
     }
 
     const sortedComments = [...comments].sort((a, b) => {
-        const timeA = parseVNDateToDate(a.Timestamp)?.getTime() || 0;
-        const timeB = parseVNDateToDate(b.Timestamp)?.getTime() || 0;
-        return timeA - timeB;
+        const timeA = parseForumDate(a.Timestamp).getTime();
+        const timeB = parseForumDate(b.Timestamp).getTime();
+        return timeB - timeA;
     });
 
     return (
@@ -175,7 +200,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                             <div className="flex items-center gap-2 text-xs mt-1">
                                 <span>trong <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full"># {post.Channel}</span></span>
                                 <span>•</span>
-                                <span>{timeAgo(post.Timestamp)}</span>
+                                <span>{timeAgo(parseForumDate(post.Timestamp).toISOString())}</span>
                             </div>
                         </div>
                     </div>
@@ -239,7 +264,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                         <div className="flex-grow bg-gray-50 p-4 rounded-2xl rounded-tl-none border border-gray-100">
                                             <div className="flex items-center gap-2 flex-wrap mb-2">
                                                 <span className="font-bold text-gray-900">{displayName}</span>
-                                                <span className="text-xs font-bold text-gray-400 ml-auto">{timeAgo(comment.Timestamp)}</span>
+                                                <span className="text-xs font-bold text-gray-400 ml-auto">{timeAgo(parseForumDate(comment.Timestamp).toISOString())}</span>
                                             </div>
                                             <div className="text-gray-700 whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>
                                         </div>

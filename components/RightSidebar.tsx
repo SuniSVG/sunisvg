@@ -14,6 +14,31 @@ import { ForumPostModal } from '@/components/ForumPostModal';
 import { useToast } from '@/contexts/ToastContext';
 import { AnimatePresence } from 'motion/react';
 
+const parseForumDate = (dateStr: string | undefined): Date => {
+    if (!dateStr) return new Date();
+    
+    // Handle format: HH:mm:ss dd/MM/yyyy (e.g., 13:10:12 11/9/2025)
+    const timeDateRegex = /^(\d{1,2}):(\d{1,2}):(\d{1,2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    const match = dateStr.trim().match(timeDateRegex);
+    
+    if (match) {
+        const [_, h, m, s, day, month, year] = match;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
+    }
+
+    // Handle format: dd/MM/yyyy HH:mm:ss (Standard VN)
+    const dateTimeRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})$/;
+    const match2 = dateStr.trim().match(dateTimeRegex);
+    
+    if (match2) {
+        const [_, day, month, year, h, m, s] = match2;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
+    }
+
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date() : d;
+};
+
 // ── AnimatedDigit: slot-machine style digit roller ──
 function AnimatedDigit({ value }: { value: number }) {
   const [displayValue, setDisplayValue] = React.useState(value);
@@ -147,13 +172,19 @@ export function RightSidebar() {
     }
   }, []);
 
-  const fetchLivePosts = useCallback(async () => {
+  const fetchLivePosts = useCallback(async (shouldScroll = false) => {
     try {
-      const response = await fetch('/api/forum/live');
+      const response = await fetch(`/api/forum/live?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       if (response.ok) {
         const data = await response.json();
         setLivePosts(data);
-        setTimeout(scrollToBottom, 100);
+        localStorage.setItem('edifyx_live_posts_cache', JSON.stringify(data)); // Cache live posts
+        if (shouldScroll) {
+          setTimeout(scrollToBottom, 100);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch live posts', error);
@@ -164,6 +195,16 @@ export function RightSidebar() {
 
   useEffect(() => {
     const loadData = async () => {
+      // Load cached live posts immediately for instant feel
+      const cachedLivePosts = localStorage.getItem('edifyx_live_posts_cache');
+      if (cachedLivePosts) {
+        try {
+          setLivePosts(JSON.parse(cachedLivePosts));
+          setIsLiveLoading(false);
+          setTimeout(scrollToBottom, 0);
+        } catch {}
+      }
+
       try {
         const [coursesData, purchasedData] = await Promise.all([
           fetchCourses(),
@@ -172,7 +213,7 @@ export function RightSidebar() {
         setCourses(coursesData);
         setPurchasedCategories(new Set(purchasedData));
         localStorage.removeItem('edifyx_virtual_posts');
-        await fetchLivePosts();
+        await fetchLivePosts(true);
       } catch (error) {
         console.error('Failed to load sidebar data', error);
       } finally {
@@ -185,7 +226,7 @@ export function RightSidebar() {
     const startPolling = () => {
       interval = setInterval(() => {
         if (document.visibilityState === 'visible') fetchLivePosts();
-      }, 60000);
+      }, 15000);
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -207,27 +248,45 @@ export function RightSidebar() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) { addToast('Vui lòng đăng nhập để gửi tin nhắn', 'info'); return; }
-    if (!messageInput.trim()) return;
+    const content = messageInput.trim();
+    if (!content) return;
 
-    setIsSending(true);
+    // Optimistic update: Hiển thị tin nhắn ngay lập tức
+    const tempId = `temp-${Date.now()}`;
+    const optimisticPost = {
+      ID: tempId,
+      Title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
+      Content: content,
+      AuthorName: currentUser['Tên tài khoản'],
+      Timestamp: new Date().toISOString(),
+      commentCount: 0,
+    };
+
+    setLivePosts(prev => [...prev, optimisticPost]);
+    setMessageInput('');
+    setTimeout(scrollToBottom, 50);
+
     try {
       const result = await addForumPost({
-        Title: messageInput.trim().slice(0, 50) + (messageInput.length > 50 ? '...' : ''),
-        Content: messageInput.trim(),
+        Title: optimisticPost.Title,
+        Content: content,
         AuthorEmail: currentUser.Email,
         AuthorName: currentUser['Tên tài khoản'],
         Channel: 'Chung',
       });
       if (result.success) {
-        setMessageInput('');
-        await fetchLivePosts();
+        // Tải lại ngầm để đồng bộ dữ liệu thật từ server
+        await fetchLivePosts(false);
       } else {
+        // Hoàn tác nếu lỗi
+        setLivePosts(prev => prev.filter(p => p.ID !== tempId));
+        setMessageInput(content);
         addToast(result.error || 'Lỗi khi gửi tin nhắn', 'error');
       }
     } catch (error) {
+      setLivePosts(prev => prev.filter(p => p.ID !== tempId));
+      setMessageInput(content);
       addToast('Lỗi kết nối', 'error');
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -1257,18 +1316,32 @@ export function RightSidebar() {
         {/* ───────────────────────────────────────── */}
         {/* Section 3 — Live Forum                   */}
         {/* ───────────────────────────────────────── */}
+        </div>
+
         <div className="sb-card flex flex-col min-h-0">
           {/* Header */}
           <div className="forum-header pb-3">
             <span className="forum-title">
               <span>Nhịp đập cộng đồng (Đang thử nghiệm)</span>
             </span>
-            <div className="live-badge">
-              <div className="live-dot">
-                <div className="live-dot-ping" />
-                <div className="live-dot-inner" />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fetchLivePosts(true)}
+                disabled={isLiveLoading}
+                className="p-1.5 rounded-full hover:bg-emerald-50 text-emerald-600 transition-colors disabled:opacity-50"
+                title="Làm mới"
+              >
+                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5} className={isLiveLoading ? 'animate-spin' : ''}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <div className="live-badge">
+                <div className="live-dot">
+                  <div className="live-dot-ping" />
+                  <div className="live-dot-inner" />
+                </div>
+                <span className="live-text">Live</span>
               </div>
-              <span className="live-text">Live</span>
             </div>
           </div>
 
@@ -1330,7 +1403,7 @@ export function RightSidebar() {
                           </svg>
                           {post.commentCount}
                         </span>
-                        <span className="post-time">{timeAgo(post.Timestamp)}</span>
+                        <span className="post-time">{timeAgo(parseForumDate(post.Timestamp).toISOString())}</span>
                       </div>
                     </div>
                   </div>
@@ -1371,15 +1444,14 @@ export function RightSidebar() {
             </form>
           </div>
         </div>
-        </div>
-
-        {/* Post Modal */}
-        <AnimatePresence>
-          {selectedPost && (
-            <ForumPostModal post={selectedPost} onClose={() => setSelectedPost(null)} />
-          )}
-        </AnimatePresence>
       </aside>
+
+      {/* Post Modal - Moved outside aside to prevent clipping */}
+      <AnimatePresence>
+        {selectedPost && (
+          <ForumPostModal post={selectedPost} onClose={() => setSelectedPost(null)} />
+        )}
+      </AnimatePresence>
     </>
   );
 }
