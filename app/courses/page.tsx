@@ -110,7 +110,7 @@ export default function CoursesPage() {
     const loadCourses = useCallback(async (force: boolean = false) => {
         setIsLoading(true);
         try {
-            const data = await fetchCourses();
+            const data = await fetchCourses(force);
             const processed = data
                 .filter(c => c.Title && String(c.Title).trim() !== '')
                 .map((c, i) => ({ ...c, ID: c.ID || i.toString() }));
@@ -484,7 +484,7 @@ export default function CoursesPage() {
                                 onChange={e => setSearch(e.target.value)}
                             />
                             <button 
-                                onClick={() => loadCourses()}
+                                onClick={() => loadCourses(true)}
                                 className="p-2 text-gray-400 hover:text-green-600 transition-colors rounded-xl hover:bg-green-50 mr-2"
                                 title="Làm mới dữ liệu"
                             >
