@@ -166,41 +166,23 @@ export default function CourseDetailPage() {
                 const groups: { [key: string]: ScientificArticle[] } = {};
                 let order: string[] = [];
 
-                const hasParts = relatedContent.some(item => item.Part && item.Part.trim() !== '');
-
-                if (hasParts) {
-                    relatedContent.forEach(item => {
-                        const partName = item.Part || 'Khác';
-                        if (!groups[partName]) {
-                            groups[partName] = [];
-                        }
-                        groups[partName].push(item);
-                    });
-                    order = Object.keys(groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-                } else {
-                    const total = relatedContent.length;
-                    let numStages = 4;
-                    if (total >= 100) numStages = 7;
-                    else if (total >= 50) numStages = 6;
-                    else if (total >= 20) numStages = 5;
+                // Group strictly by Part (Path) as requested
+                relatedContent.forEach(item => {
+                    // Use Part as path. If empty, group into 'Tài liệu chung'
+                    const path = item.Part && item.Part.trim() !== '' ? item.Part.trim() : 'Tài liệu chung';
                     
-                    if (total > 0) {
-                        const itemsPerStage = Math.floor(total / numStages);
-                        const remainder = total % numStages;
-                        
-                        let currentIndex = 0;
-                        for (let i = 1; i <= numStages; i++) {
-                            const count = (i === numStages) ? (itemsPerStage + remainder) : itemsPerStage;
-                            const stageItems = relatedContent.slice(currentIndex, currentIndex + count);
-                            if (stageItems.length > 0) {
-                                const stageName = `GIAI ĐOẠN ${i}: ÔN LUYỆN CĂN BẢN`; // Generic title if auto-generated
-                                groups[stageName] = stageItems;
-                                order.push(stageName);
-                                currentIndex += count;
-                            }
-                        }
+                    if (!groups[path]) {
+                        groups[path] = [];
                     }
-                }
+                    groups[path].push(item);
+                });
+
+                // Sort groups alphabetically
+                order = Object.keys(groups).sort((a, b) => {
+                    if (a === 'Tài liệu chung') return 1;
+                    if (b === 'Tài liệu chung') return -1;
+                    return a.localeCompare(b, undefined, { numeric: true });
+                });
 
                 setGroupedContent(groups);
                 setStageOrder(order);
