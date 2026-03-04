@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { fetchCourses } from '@/services/googleSheetService';
@@ -103,23 +103,28 @@ export default function CoursesPage() {
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState('Tất cả');
+    const [paidPage, setPaidPage] = useState(1);
+    const [freePage, setFreePage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+
+    const loadCourses = useCallback(async (force: boolean = false) => {
+        setIsLoading(true);
+        try {
+            const data = await fetchCourses();
+            const processed = data
+                .filter(c => c.Title && String(c.Title).trim() !== '')
+                .map((c, i) => ({ ...c, ID: c.ID || i.toString() }));
+            setCourses(processed);
+        } catch (err) {
+            setError('Không thể tải danh sách khóa học. Vui lòng thử lại sau.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        const loadCourses = async () => {
-            try {
-                const data = await fetchCourses();
-                const processed = data
-                    .filter(c => c.Title && String(c.Title).trim() !== '')
-                    .map((c, i) => ({ ...c, ID: c.ID || i.toString() }));
-                setCourses(processed);
-            } catch (err) {
-                setError('Không thể tải danh sách khóa học. Vui lòng thử lại sau.');
-            } finally {
-                setIsLoading(false);
-            }
-        };
         loadCourses();
-    }, []);
+    }, [loadCourses]);
 
     const categories = useMemo(() =>
         ['Tất cả', ...Array.from(new Set(courses.map(c => c.Category).filter(Boolean)))],
@@ -135,6 +140,42 @@ export default function CoursesPage() {
             return matchSearch && matchCat;
         });
     }, [courses, search, activeCategory]);
+
+    useEffect(() => {
+        setPaidPage(1);
+        setFreePage(1);
+    }, [search, activeCategory]);
+
+    const { paidCourses, freeCourses } = useMemo(() => {
+        const paid: Course[] = [];
+        const free: Course[] = [];
+        filtered.forEach(c => {
+            if (c.Price > 0) paid.push(c);
+            else free.push(c);
+        });
+        return { paidCourses: paid, freeCourses: free };
+    }, [filtered]);
+
+    const paginatedPaid = paidCourses.slice((paidPage - 1) * ITEMS_PER_PAGE, paidPage * ITEMS_PER_PAGE);
+    const paginatedFree = freeCourses.slice((freePage - 1) * ITEMS_PER_PAGE, freePage * ITEMS_PER_PAGE);
+    
+    const totalPaidPages = Math.ceil(paidCourses.length / ITEMS_PER_PAGE);
+    const totalFreePages = Math.ceil(freeCourses.length / ITEMS_PER_PAGE);
+
+    const renderPagination = (currentPage: number, totalPages: number, setPage: (p: number) => void) => {
+        if (totalPages <= 1) return null;
+        return (
+            <div className="flex justify-center items-center gap-2 mt-8">
+                <button onClick={() => setPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <Icon name="chevron-left" className="w-5 h-5" />
+                </button>
+                <span className="text-sm font-bold text-gray-700">Trang {currentPage} / {totalPages}</span>
+                <button onClick={() => setPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <Icon name="chevron-right" className="w-5 h-5" />
+                </button>
+            </div>
+        );
+    };
 
     return (
         <>
@@ -442,6 +483,28 @@ export default function CoursesPage() {
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
+                            <button 
+                                onClick={() => loadCourses()}
+                                className="p-2 text-gray-400 hover:text-green-600 transition-colors rounded-xl hover:bg-green-50 mr-2"
+                                title="Làm mới dữ liệu"
+                            >
+                                <svg 
+                                    xmlns="http://www.w3.org/2000/svg" 
+                                    width="20" height="20" 
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    strokeWidth="2" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                    className={isLoading ? 'animate-spin' : ''}
+                                >
+                                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                                    <path d="M21 3v5h-5" />
+                                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                                    <path d="M3 21v-5h5" />
+                                </svg>
+                            </button>
                             <button className="cp-search-btn">Tìm kiếm</button>
                         </div>
 
@@ -509,10 +572,36 @@ export default function CoursesPage() {
                             </button>
                         </div>
                     ) : filtered.length > 0 ? (
-                        <div className="cp-grid">
-                            {filtered.map((course, index) => (
-                                <CourseCard key={`${course.ID}-${index}`} course={course} index={index} />
-                            ))}
+                        <div className="space-y-12">
+                            {/* Paid Section */}
+                            {paidCourses.length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600"><Icon name="star" className="w-6 h-6" /></div>
+                                        <h2 className="text-2xl font-bold text-gray-900">Khóa học trả phí</h2>
+                                        <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-1 rounded-full">{paidCourses.length}</span>
+                                    </div>
+                                    <div className="cp-grid">
+                                        {paginatedPaid.map((course, index) => <CourseCard key={`${course.ID}-${index}`} course={course} index={index} />)}
+                                    </div>
+                                    {renderPagination(paidPage, totalPaidPages, setPaidPage)}
+                                </div>
+                            )}
+                            {paidCourses.length > 0 && freeCourses.length > 0 && <div className="border-t border-gray-200" />}
+                            {/* Free Section */}
+                            {freeCourses.length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600"><Icon name="gift" className="w-6 h-6" /></div>
+                                        <h2 className="text-2xl font-bold text-gray-900">Khóa học miễn phí</h2>
+                                        <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">{freeCourses.length}</span>
+                                    </div>
+                                    <div className="cp-grid">
+                                        {paginatedFree.map((course, index) => <CourseCard key={`${course.ID}-${index}`} course={course} index={index} />)}
+                                    </div>
+                                    {renderPagination(freePage, totalFreePages, setFreePage)}
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="cp-empty">

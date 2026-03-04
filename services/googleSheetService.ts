@@ -10,7 +10,7 @@ interface CacheEntry<T> {
 }
 const cache = new Map<string, CacheEntry<any>>();
 // Increased cache duration for better performance on subsequent loads.
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes cache
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes cache
 const revalidationRequests = new Map<string, Promise<any>>();
 
 // --- LocalStorage Cache Helpers ---
