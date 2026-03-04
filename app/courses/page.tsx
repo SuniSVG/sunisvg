@@ -110,7 +110,7 @@ export default function CoursesPage() {
     const loadCourses = useCallback(async (force: boolean = false) => {
         setIsLoading(true);
         try {
-            const data = await fetchCourses(force);
+            const data = await fetchCourses();
             const processed = data
                 .filter(c => c.Title && String(c.Title).trim() !== '')
                 .map((c, i) => ({ ...c, ID: c.ID || i.toString() }));
