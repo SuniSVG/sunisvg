@@ -245,10 +245,7 @@ function LabelPopup({ index, item, anchor, onSave, onClose }: LabelPopupProps) {
       />
 
       <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 mb-3 leading-relaxed">
-        💡 Điểm số ({item.value !== null ? `${item.value}%` : 'trống'}) đọc tự động từ cột{' '}
-        <strong>Tiêu chí {index + 1}</strong> — sheet{' '}
-        <code className="bg-blue-100 px-1 rounded">Accounts</code>.
-        Chỉ tên hiển thị được lưu tại đây.
+        💡 Điểm số ({item.value !== null ? `${item.value}%` : 'trống'}) 
       </p>
 
       <button
@@ -763,33 +760,7 @@ export default function ProgressPage() {
                 </div>
               </div>
             )}
-
-            {/* Empty state */}
-            {allEmpty && (
-              <div className="border border-dashed border-gray-200 rounded-2xl p-6 text-center bg-white/40">
-                <p className="text-gray-400 font-medium text-sm">Dữ liệu điểm chưa được nhập</p>
-                <p className="text-gray-400 text-xs mt-1">
-                  Admin điền cột <code className="bg-gray-100 px-1 rounded">Tiêu chí 1–6</code>{' '}
-                  định dạng <code className="bg-gray-100 px-1 rounded">[Toán, 85]</code>{' '}
-                  trong sheet <code className="bg-gray-100 px-1 rounded">Accounts</code>.
-                </p>
-              </div>
-            )}
           </div>
-        </div>
-
-        {/* Footer stats */}
-        <div className="grid grid-cols-3 gap-4 mt-8">
-          {[
-            { label: 'Xếp hạng',   value: 'Top 15%' },
-            { label: 'Chuỗi ngày', value: '12 Ngày'  },
-            { label: 'Mục tiêu',   value: '900+'      },
-          ].map(s => (
-            <div key={s.label} className="bg-white/50 p-4 rounded-2xl text-center border border-white/50">
-              <div className="text-gray-500 text-xs uppercase font-bold tracking-wider mb-1">{s.label}</div>
-              <div className="text-2xl font-black text-gray-800">{s.value}</div>
-            </div>
-          ))}
         </div>
       </div>
 
