@@ -581,8 +581,9 @@ export default function Home() {
   const [isPurchasing, setIsPurchasing] = useState<string | null>(null);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-  const [targetExam, setTargetExam] = useState<{ title: string; date: Date } | null>(null);
+  const [nearestTimeLeft, setNearestTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [thptTimeLeft, setThptTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [nearestExam, setNearestExam] = useState<{ title: string; date: Date } | null>(null);
 
   useEffect(() => {
     router.prefetch('/courses');
@@ -648,15 +649,37 @@ export default function Home() {
       }
     });
 
-    setTargetExam(nearestExam);
+    setNearestExam(nearestExam);
 
-    if (!nearestExam) return;
+    // Ngày thi THPTQG 2026 (Dự kiến 11/06/2026 07:30)
+    const thptDate = new Date(2026, 5, 11, 7, 30);
 
     const timer = setInterval(() => {
-      const difference = nearestExam!.date.getTime() - new Date().getTime();
-      if (difference > 0) {
-        setTimeLeft({ days: Math.floor(difference / (1000 * 60 * 60 * 24)), hours: Math.floor((difference / (1000 * 60 * 60)) % 24), minutes: Math.floor((difference / 1000 / 60) % 60), seconds: Math.floor((difference / 1000) % 60) });
-      } else { setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 }); clearInterval(timer); }
+      const currentTime = new Date().getTime();
+
+      // 1. Cập nhật đồng hồ kỳ thi gần nhất
+      if (nearestExam) {
+        const diffNearest = nearestExam.date.getTime() - currentTime;
+        if (diffNearest > 0) {
+          setNearestTimeLeft({
+            days: Math.floor(diffNearest / (1000 * 60 * 60 * 24)),
+            hours: Math.floor((diffNearest / (1000 * 60 * 60)) % 24),
+            minutes: Math.floor((diffNearest / 1000 / 60) % 60),
+            seconds: Math.floor((diffNearest / 1000) % 60)
+          });
+        } else { setNearestTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 }); }
+      }
+
+      // 2. Cập nhật đồng hồ THPTQG 2026
+      const diffThpt = thptDate.getTime() - currentTime;
+      if (diffThpt > 0) {
+        setThptTimeLeft({
+          days: Math.floor(diffThpt / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((diffThpt / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((diffThpt / 1000 / 60) % 60),
+          seconds: Math.floor((diffThpt / 1000) % 60)
+        });
+      } else { setThptTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 }); }
     }, 1000);
 
     return () => clearInterval(timer);
@@ -833,32 +856,72 @@ export default function Home() {
                   ))}
                 </div>
 
-                {/* COUNTDOWN TIMER */}
-                {targetExam && (
-                  <div className="text-center" style={{ animation: 'hm-fadeUp .6s .2s ease both' }}>
-                    <div 
-                      className="h-px bg-gradient-to-r from-transparent via-green-200 to-transparent my-6"
-                    />
-                    <p className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
-                      Đếm ngược tới kỳ thi: <span className="text-green-700 font-extrabold">{targetExam.title}</span>
+                {/* COUNTDOWN TIMERS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8" style={{ animation: 'hm-fadeUp .6s .2s ease both' }}>
+                  {/* Left: Nearest Exam */}
+                  {nearestExam ? (
+                    <div className="bg-white/60 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-3 opacity-10">
+                        <Icon name="clock" className="w-16 h-16 text-green-600" />
+                      </div>
+                      <p className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        Sắp diễn ra
+                      </p>
+                      <h3 className="text-lg font-black text-gray-800 mb-4 line-clamp-1" title={nearestExam.title}>
+                        {nearestExam.title}
+                      </h3>
+                      <div className="flex gap-3">
+                        {[
+                          { label: 'Ngày', value: nearestTimeLeft.days },
+                          { label: 'Giờ', value: nearestTimeLeft.hours },
+                          { label: 'Phút', value: nearestTimeLeft.minutes },
+                          { label: 'Giây', value: nearestTimeLeft.seconds }
+                        ].map((item) => (
+                          <div key={item.label} className="flex flex-col items-center">
+                            <div className="bg-white rounded-lg w-12 h-12 flex items-center justify-center text-xl font-black text-green-700 shadow-sm border border-green-100 mb-1">
+                              {item.value.toString().padStart(2, '0')}
+                            </div>
+                            <span className="text-[9px] font-bold uppercase text-gray-400">{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white/60 backdrop-blur-sm border border-white/60 rounded-2xl p-5 shadow-sm flex items-center justify-center text-gray-400 text-sm font-medium">
+                      Đang cập nhật lịch thi...
+                    </div>
+                  )}
+
+                  {/* Right: THPTQG 2026 */}
+                  <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                      <Icon name="award" className="w-16 h-16 text-orange-600" />
+                    </div>
+                    <p className="text-xs font-bold text-orange-600/80 mb-2 uppercase tracking-wider flex items-center gap-2">
+                      <Icon name="flag" className="w-3.5 h-3.5" />
+                      Mục tiêu lớn
                     </p>
-                    <div className="flex justify-center gap-3 md:gap-4 mb-6">
+                    <h3 className="text-lg font-black text-gray-800 mb-4">
+                      Kỳ thi TN THPT 2026
+                    </h3>
+                    <div className="flex gap-3">
                       {[
-                        { label: 'Ngày', value: timeLeft.days },
-                        { label: 'Giờ', value: timeLeft.hours },
-                        { label: 'Phút', value: timeLeft.minutes },
-                        { label: 'Giây', value: timeLeft.seconds }
+                        { label: 'Ngày', value: thptTimeLeft.days },
+                        { label: 'Giờ', value: thptTimeLeft.hours },
+                        { label: 'Phút', value: thptTimeLeft.minutes },
+                        { label: 'Giây', value: thptTimeLeft.seconds }
                       ].map((item) => (
                         <div key={item.label} className="flex flex-col items-center">
-                          <div className="bg-white/60 backdrop-blur-sm rounded-xl w-16 h-16 flex items-center justify-center text-2xl md:text-3xl font-black text-gray-800 shadow-sm border border-white/80 mb-1.5">
+                          <div className="bg-white rounded-lg w-12 h-12 flex items-center justify-center text-xl font-black text-orange-600 shadow-sm border border-orange-100 mb-1">
                             {item.value.toString().padStart(2, '0')}
                           </div>
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{item.label}</span>
+                          <span className="text-[9px] font-bold uppercase text-orange-400/80">{item.label}</span>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* ── Dashboard grid ── */}
                 <div className="hm-dash-grid">

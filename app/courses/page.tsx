@@ -10,7 +10,7 @@ import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 
 // ─── CourseCard ──────────────────────────────────────────────────────────────
 
-const CourseCard = React.memo<{ course: Course; index: number }>(({ course, index }) => {
+const CourseCard = React.memo<{ course: Course; index: number; purchaseCount?: number }>(({ course, index, purchaseCount = 0 }) => {
     const imageUrl = useMemo(() => {
         if (!course.ImageURL) return '';
         return convertGoogleDriveUrl(course.ImageURL);
@@ -51,12 +51,20 @@ const CourseCard = React.memo<{ course: Course; index: number }>(({ course, inde
             <div className="cc-body">
                 <h3 className="cc-title">{course.Title}</h3>
 
-                {course.Authors && (
-                    <div className="cc-author">
-                        <Icon name="user" className="w-3.5 h-3.5 shrink-0" />
-                        <span>{course.Authors}</span>
-                    </div>
-                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+                    {course.Authors && (
+                        <div className="cc-author">
+                            <Icon name="user" className="w-3.5 h-3.5 shrink-0" />
+                            <span>{course.Authors}</span>
+                        </div>
+                    )}
+                    {purchaseCount > 0 && (
+                        <div className="cc-author text-orange-600 font-semibold">
+                            <Icon name="users" className="w-3.5 h-3.5 shrink-0" />
+                            <span>{purchaseCount} học viên</span>
+                        </div>
+                    )}
+                </div>
 
                 {course.Abstract && (
                     <p className="cc-abstract">{course.Abstract}</p>
@@ -99,6 +107,7 @@ const SkeletonCard = () => (
 
 export default function CoursesPage() {
     const [courses, setCourses] = useState<Course[]>([]);
+    const [purchaseStats, setPurchaseStats] = useState<Record<string, number>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
@@ -115,6 +124,7 @@ export default function CoursesPage() {
                 .filter(c => c.Title && String(c.Title).trim() !== '')
                 .map((c, i) => ({ ...c, ID: c.ID || i.toString() }));
             setCourses(processed);
+            setPurchaseStats({});
         } catch (err) {
             setError('Không thể tải danh sách khóa học. Vui lòng thử lại sau.');
         } finally {
@@ -161,6 +171,11 @@ export default function CoursesPage() {
     
     const totalPaidPages = Math.ceil(paidCourses.length / ITEMS_PER_PAGE);
     const totalFreePages = Math.ceil(freeCourses.length / ITEMS_PER_PAGE);
+
+    // Helper để lấy số lượng mua (theo Category hoặc ID)
+    const getPurchaseCount = (course: Course) => {
+        return purchaseStats[course.Category] || purchaseStats[course.ID] || 0;
+    };
 
     const renderPagination = (currentPage: number, totalPages: number, setPage: (p: number) => void) => {
         if (totalPages <= 1) return null;
@@ -582,7 +597,14 @@ export default function CoursesPage() {
                                         <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-1 rounded-full">{paidCourses.length}</span>
                                     </div>
                                     <div className="cp-grid">
-                                        {paginatedPaid.map((course, index) => <CourseCard key={`${course.ID}-${index}`} course={course} index={index} />)}
+                                        {paginatedPaid.map((course, index) => (
+                                            <CourseCard 
+                                                key={`${course.ID}-${index}`} 
+                                                course={course} 
+                                                index={index} 
+                                                purchaseCount={getPurchaseCount(course)}
+                                            />
+                                        ))}
                                     </div>
                                     {renderPagination(paidPage, totalPaidPages, setPaidPage)}
                                 </div>
@@ -597,7 +619,14 @@ export default function CoursesPage() {
                                         <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">{freeCourses.length}</span>
                                     </div>
                                     <div className="cp-grid">
-                                        {paginatedFree.map((course, index) => <CourseCard key={`${course.ID}-${index}`} course={course} index={index} />)}
+                                        {paginatedFree.map((course, index) => (
+                                            <CourseCard 
+                                                key={`${course.ID}-${index}`} 
+                                                course={course} 
+                                                index={index}
+                                                purchaseCount={getPurchaseCount(course)}
+                                            />
+                                        ))}
                                     </div>
                                     {renderPagination(freePage, totalFreePages, setFreePage)}
                                 </div>
