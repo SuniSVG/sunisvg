@@ -385,8 +385,12 @@ export default function ForumPage() {
                             <>
                                 <div className="space-y-4">
                                     {paginatedPosts.map(post => {
-                                        const authorAccount = accounts.find(acc => acc.Email.toLowerCase() === post.AuthorEmail.toLowerCase());
+                                        const authorAccount = accounts.find(acc => 
+                                            (post.AuthorEmail && acc.Email.toLowerCase() === post.AuthorEmail.toLowerCase()) || 
+                                            acc['Tên tài khoản'] === post.AuthorName
+                                        );
                                         const avatarUrl = authorAccount?.AvatarURL;
+                                        const profileLink = authorAccount?.Email ? `/profile/${authorAccount.Email}` : '#';
                                         const isUpvoted = currentUser && (post.UpvotedBy || '').includes(currentUser.Email);
 
                                         return (
@@ -395,8 +399,8 @@ export default function ForumPage() {
                                                     <div className="flex items-start justify-between gap-4">
                                                         <div className="flex-1">
                                                             <div className="flex items-center gap-3 mb-2">
-                                                                <Link href={`/profile/${post.AuthorEmail}`} className="group flex items-center gap-3">
-                                                                <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 overflow-hidden relative flex-shrink-0 group-hover:ring-2 group-hover:ring-emerald-400 transition-all">
+                                                                <Link href={profileLink} className="group flex items-center gap-3" onClick={e => !authorAccount?.Email && e.preventDefault()}>
+                                                                <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 overflow-hidden relative flex-shrink-0">
                                                                     {avatarUrl ? (
                                                                         <Image
                                                                             src={convertGoogleDriveUrl(avatarUrl)}

@@ -4,7 +4,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { Camera, Loader2 } from 'lucide-react';
+import { Camera, Loader2, Eye, Upload, X } from 'lucide-react';
 import { uploadAvatar } from '@/services/googleSheetService';
 import { compressImage } from '@/utils/imageCompression';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
@@ -27,6 +27,8 @@ export default function AvatarUploader({
 }: AvatarUploaderProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { addToast } = useToast();
 
@@ -50,6 +52,7 @@ export default function AvatarUploader({
     // Optimistic preview
     const objectUrl = URL.createObjectURL(file);
     setPreview(objectUrl);
+    setShowMenu(false);
     setLoading(true);
 
     try {
@@ -73,17 +76,22 @@ export default function AvatarUploader({
     }
   };
 
-  const handleClick = () => {
-      if (isEditable && !loading) {
-          inputRef.current?.click();
+  const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (loading) return;
+
+      if (isEditable) {
+          setShowMenu(!showMenu);
+      } else if (preview) {
+          setShowLightbox(true);
       }
   };
 
   return (
-    <div className="relative group shrink-0">
+    <div className="relative group shrink-0 z-20">
       <div 
         onClick={handleClick}
-        className={`w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white/20 backdrop-blur-md ring-4 ring-white/30 shadow-2xl flex items-center justify-center overflow-hidden relative ${isEditable ? 'cursor-pointer' : ''}`}
+        className={`w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white/20 backdrop-blur-md ring-4 ring-white/30 shadow-2xl flex items-center justify-center overflow-hidden relative cursor-pointer`}
       >
         {preview ? (
           <Image 
@@ -111,6 +119,45 @@ export default function AvatarUploader({
             </div>
         )}
       </div>
+
+      {/* Menu Options */}
+      {showMenu && (
+        <>
+            <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-40 min-w-[160px] flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200">
+                {preview && (
+                    <button 
+                        onClick={() => { setShowLightbox(true); setShowMenu(false); }} 
+                        className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-colors w-full text-left"
+                    >
+                        <Eye className="w-4 h-4" /> Xem ảnh
+                    </button>
+                )}
+                <button 
+                    onClick={() => { inputRef.current?.click(); setShowMenu(false); }} 
+                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-colors w-full text-left"
+                >
+                    <Upload className="w-4 h-4" /> Tải ảnh lên
+                </button>
+            </div>
+        </>
+      )}
+
+      {/* Lightbox */}
+      {showLightbox && preview && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowLightbox(false)}>
+            <button className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
+                <X className="w-6 h-6" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+                src={preview} 
+                alt="Avatar Full" 
+                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" 
+                onClick={(e) => e.stopPropagation()}
+            />
+        </div>
+      )}
 
       {isEditable && (
         <input

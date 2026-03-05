@@ -83,8 +83,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
     acc['Tên tài khoản'] === post.AuthorName
   );
 
-  const authorEmail = post.AuthorEmail || postAuthorAccount?.Email;
-  const profileLink = authorEmail ? `/profile/${authorEmail}` : '#';
+  const profileLink = postAuthorAccount?.Email ? `/profile/${postAuthorAccount.Email}` : '#';
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -97,8 +96,8 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
         {/* Header */}
         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <Link href={profileLink} onClick={onClose} className="group flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold overflow-hidden relative group-hover:ring-2 group-hover:ring-blue-400 transition-all">
+            <Link href={profileLink} onClick={(e) => { if(!postAuthorAccount?.Email) e.preventDefault(); else onClose(); }} className="group flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold overflow-hidden relative">
               {postAuthorAccount?.AvatarURL ? (
                 <Image
                   src={convertGoogleDriveUrl(postAuthorAccount.AvatarURL)}
@@ -145,12 +144,16 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
               <div className="space-y-6">
                 {comments.length > 0 ? (
                   comments.map((comment, idx) => {
-                    const commenterAccount = accounts.find(acc => acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase());
+                    const commenterAccount = accounts.find(acc => 
+                        (comment.AuthorEmail && acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase()) || 
+                        acc['Tên tài khoản'] === comment.AuthorName
+                    );
+                    const commenterProfileLink = commenterAccount?.Email ? `/profile/${commenterAccount.Email}` : '#';
                     
                     return (
                       <div key={idx} className="flex gap-4">
-                        <Link href={`/profile/${comment.AuthorEmail}`} onClick={onClose} className="flex-shrink-0 group">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0 text-xs font-bold overflow-hidden relative group-hover:ring-2 group-hover:ring-blue-400 transition-all">
+                        <Link href={commenterProfileLink} onClick={(e) => { if(!commenterAccount?.Email) e.preventDefault(); else onClose(); }} className="flex-shrink-0 group">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0 text-xs font-bold overflow-hidden relative">
                           {commenterAccount?.AvatarURL ? (
                             <Image
                               src={convertGoogleDriveUrl(commenterAccount.AvatarURL)}
@@ -166,7 +169,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                         </Link>
                         <div className="flex-1 bg-gray-50 rounded-2xl p-4">
                           <div className="flex items-center justify-between mb-1">
-                            <Link href={`/profile/${comment.AuthorEmail}`} onClick={onClose} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition-colors">{comment.AuthorName}</Link>
+                            <Link href={commenterProfileLink} onClick={(e) => { if(!commenterAccount?.Email) e.preventDefault(); else onClose(); }} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition-colors">{comment.AuthorName}</Link>
                             <span className="text-[10px] text-gray-400">{comment.Timestamp || 'Vừa xong'}</span>
                           </div>
                           <p className="text-sm text-gray-700 leading-relaxed">{comment.Content}</p>

@@ -182,7 +182,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
         return timeB - timeA;
     });
 
-    const postAuthorAccount = accounts.find(acc => acc.Email.toLowerCase() === post.AuthorEmail.toLowerCase());
+    const postAuthorAccount = accounts.find(acc => 
+        (post.AuthorEmail && acc.Email.toLowerCase() === post.AuthorEmail.toLowerCase()) || 
+        acc['Tên tài khoản'] === post.AuthorName
+    );
+    const profileLink = postAuthorAccount?.Email ? `/profile/${postAuthorAccount.Email}` : '#';
 
     return (
         <div className="min-h-[calc(100vh-64px)] bg-gray-50 py-8">
@@ -194,8 +198,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
 
                 <article className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
                     <div className="flex items-center gap-3 flex-wrap text-sm text-gray-500 mb-6 pb-6 border-b border-gray-100">
-                        <Link href={`/profile/${post.AuthorEmail}`} className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-lg overflow-hidden relative group-hover:ring-2 group-hover:ring-blue-400 transition-all">
+                        <Link href={profileLink} className="flex items-center gap-3 group" onClick={e => !postAuthorAccount?.Email && e.preventDefault()}>
+                        <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-lg overflow-hidden relative">
                             {postAuthorAccount?.AvatarURL ? (
                                 <Image
                                     src={convertGoogleDriveUrl(postAuthorAccount.AvatarURL)}
@@ -279,14 +283,18 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                     <div className="space-y-8">
                         {sortedComments.length > 0 ? (
                             sortedComments.map(comment => {
-                                const commenterAccount = accounts.find(acc => acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase());
+                                const commenterAccount = accounts.find(acc => 
+                                    (comment.AuthorEmail && acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase()) || 
+                                    acc['Tên tài khoản'] === comment.AuthorName
+                                );
                                 const displayName = commenterAccount ? commenterAccount['Tên tài khoản'] : comment.AuthorName;
                                 const commenterAvatar = commenterAccount?.AvatarURL;
+                                const commenterProfileLink = commenterAccount?.Email ? `/profile/${commenterAccount.Email}` : '#';
                                 
                                 return (
                                     <div key={comment.ID} className="flex items-start gap-4">
-                                        <Link href={`/profile/${comment.AuthorEmail}`} className="flex-shrink-0 group">
-                                        <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-bold border border-gray-200 overflow-hidden relative group-hover:ring-2 group-hover:ring-blue-400 transition-all">
+                                        <Link href={commenterProfileLink} className="flex-shrink-0 group" onClick={e => !commenterAccount?.Email && e.preventDefault()}>
+                                        <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-bold border border-gray-200 overflow-hidden relative">
                                             {commenterAvatar ? (
                                                 <Image
                                                     src={convertGoogleDriveUrl(commenterAvatar)}
@@ -302,7 +310,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                         </Link>
                                         <div className="flex-grow bg-gray-50 p-4 rounded-2xl rounded-tl-none border border-gray-100">
                                             <div className="flex items-center gap-2 flex-wrap mb-2">
-                                                <Link href={`/profile/${comment.AuthorEmail}`} className="font-bold text-gray-900 hover:text-blue-600 transition-colors">{displayName}</Link>
+                                                <Link href={commenterProfileLink} className="font-bold text-gray-900 hover:text-blue-600 transition-colors" onClick={e => !commenterAccount?.Email && e.preventDefault()}>{displayName}</Link>
                                                 <span className="text-xs font-bold text-gray-400 ml-auto">{timeAgo(parseForumDate(comment.Timestamp).toISOString())}</span>
                                             </div>
                                             <div className="text-gray-700 whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>

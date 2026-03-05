@@ -1385,7 +1385,7 @@ export function RightSidebar() {
                   <Link
                     href={profileLink}
                     onClick={(e) => e.stopPropagation()}
-                    className="post-avatar transition-transform hover:scale-105"
+                    className="post-avatar"
                     style={{ background: !avatarUrl ? `linear-gradient(135deg, var(--a1), var(--a2))` : 'transparent' }}
                     ref={!avatarUrl ? el => {
                       if (el) {
