@@ -19,9 +19,6 @@ export default function Header() {
             <Link href="/articles" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Thư viện
             </Link>
-            <Link href="/virtual" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
-              PLTA.svg
-            </Link>
             <Link href="/courses" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Khoá học
             </Link>
