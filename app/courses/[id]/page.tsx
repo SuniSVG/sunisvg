@@ -190,7 +190,7 @@ export default function CourseDetailPage() {
                 if (currentUser) {
                     let purchased = false;
                     for (const pc of purchasedCats) {
-                        const cleanPc = (typeof pc === 'string' ? pc : pc.CategoryName).replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
+                        const cleanPc = pc.CategoryName.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
                         const cleanCategory = foundCourse.Category?.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
                         const cleanTitle = foundCourse.Title?.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
                         if (cleanPc === cleanCategory || cleanPc === cleanTitle) {
