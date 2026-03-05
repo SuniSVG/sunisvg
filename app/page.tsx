@@ -578,6 +578,7 @@ export default function Home() {
   const router = useRouter();
   const [realCourses, setRealCourses] = useState<Course[]>([]);
   const [purchasedCategories, setPurchasedCategories] = useState<Set<string>>(new Set());
+  const [purchaseDates, setPurchaseDates] = useState<Record<string, string>>({});
   const [isPurchasing, setIsPurchasing] = useState<string | null>(null);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
@@ -614,7 +615,15 @@ export default function Home() {
         ]);
         setRealCourses(coursesData);
         localStorage.setItem('courses_data_cache', JSON.stringify(coursesData));
-        setPurchasedCategories(new Set(purchasedData));
+        
+        const purchasedSet = new Set<string>();
+        const datesMap: Record<string, string> = {};
+        purchasedData.forEach((p: any) => {
+            purchasedSet.add(p.CategoryName);
+            datesMap[p.CategoryName] = p.PurchaseDate;
+        });
+        setPurchasedCategories(purchasedSet);
+        setPurchaseDates(datesMap);
       } catch (error) { console.error('Failed to load courses', error); }
     };
     loadData();
@@ -699,6 +708,17 @@ export default function Home() {
 
   const myCourses = useMemo(() => realCourses.filter(c => isCourseOwned(c)), [realCourses, isCourseOwned]);
 
+  const parseDate = useCallback((dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    // Try dd/MM/yyyy
+    const ddmmyyyy = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (ddmmyyyy) {
+      return new Date(parseInt(ddmmyyyy[3]), parseInt(ddmmyyyy[2]) - 1, parseInt(ddmmyyyy[1]));
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  }, []);
+
   const handlePurchase = async (e: React.MouseEvent, course: Course) => {
     e.stopPropagation();
     if (!currentUser) { addToast('Vui lòng đăng nhập để mua hàng.', 'info'); router.push('/login'); return; }
@@ -714,7 +734,10 @@ export default function Home() {
       if (result.success) {
         addToast('Mua thành công!', 'success');
         await refreshCurrentUser({ silent: true });
+        const now = new Date();
+        const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
         setPurchasedCategories(prev => new Set(prev).add(course.Category));
+        setPurchaseDates(prev => ({ ...prev, [course.Category]: dateStr }));
       } else addToast(result.error || 'Giao dịch thất bại.', 'error');
     } catch (e: any) { addToast(e.message || 'Lỗi kết nối.', 'error'); }
     finally { setIsPurchasing(null); }
@@ -1026,32 +1049,65 @@ export default function Home() {
                     <div style={{ flex: 1 }}>
                       {myCourses.length > 0 ? (
                         <div className="hm-course-list">
-                          {myCourses.map(course => (
-                            <Link href={`/courses/${course.ID}`} key={course.ID} prefetch={true} className="hm-course-row">
-                              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden relative">
-                                {course.ImageURL ? (
-                                  <Image
-                                    src={convertGoogleDriveUrl(course.ImageURL)}
-                                    alt={course.Title}
-                                    fill
-                                    className="object-cover"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  <Icon name="book" className="w-6 h-6 text-gray-300" />
-                                )}
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div className="hm-course-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {course.Title}
+                          {myCourses.map(course => {
+                            const expiry = parseInt(course.Expiry || '0', 10);
+                            let progress = 0;
+                            let progressLabel = '0%';
+
+                            if (expiry === 0) {
+                              progress = 100;
+                              progressLabel = '100%';
+                            } else {
+                              let pDateStr = purchaseDates[course.Category];
+                              if (!pDateStr) {
+                                for (const cat of Object.keys(purchaseDates)) {
+                                  if (cleanCategoryName(cat) === cleanCategoryName(course.Category || '') ||
+                                      cleanCategoryName(cat) === cleanCategoryName(course.Title || '')) {
+                                    pDateStr = purchaseDates[cat];
+                                    break;
+                                  }
+                                }
+                              }
+                              if (pDateStr) {
+                                const pDate = parseDate(pDateStr);
+                                if (pDate) {
+                                  const now = new Date();
+                                  const diffTime = Math.abs(now.getTime() - pDate.getTime());
+                                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                  const pct = (diffDays / expiry) * 100;
+                                  progress = Math.min(100, Math.max(0, pct));
+                                  progressLabel = `${Math.round(progress)}%`;
+                                }
+                              }
+                            }
+
+                            return (
+                              <Link href={`/courses/${course.ID}`} key={course.ID} prefetch={true} className="hm-course-row">
+                                <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden relative">
+                                  {course.ImageURL ? (
+                                    <Image
+                                      src={convertGoogleDriveUrl(course.ImageURL)}
+                                      alt={course.Title}
+                                      fill
+                                      className="object-cover"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <Icon name="book" className="w-6 h-6 text-gray-300" />
+                                  )}
                                 </div>
-                                <div className="hm-progress-bar">
-                                  <div className="hm-progress-fill" style={{ width: '0%' }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div className="hm-course-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {course.Title}
+                                  </div>
+                                  <div className="hm-progress-bar">
+                                    <div className="hm-progress-fill" style={{ width: `${progress}%` }} />
+                                  </div>
                                 </div>
-                              </div>
-                              <span className="hm-pct-label">0%</span>
-                            </Link>
-                          ))}
+                                <span className="hm-pct-label">{progressLabel}</span>
+                              </Link>
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="hm-empty">

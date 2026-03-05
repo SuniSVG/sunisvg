@@ -211,7 +211,7 @@ export function RightSidebar() {
           currentUser ? fetchPurchasedCategories(currentUser.Email) : Promise.resolve([]),
         ]);
         setCourses(coursesData);
-        setPurchasedCategories(new Set(purchasedData));
+        setPurchasedCategories(new Set(purchasedData.map((p: any) => p.CategoryName)));
         localStorage.removeItem('edifyx_virtual_posts');
         await fetchLivePosts(true);
       } catch (error) {

@@ -297,14 +297,17 @@ export const getScheduleForUser = async (email: string): Promise<ScheduleEvent[]
     }
 };
 
-export const fetchPurchasedCategories = async (email: string): Promise<string[]> => {
+export const fetchPurchasedCategories = async (email: string): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
     try {
         const rawPurchases = await fetchDataFromAppsScript<any>('Purchases');
         if (!Array.isArray(rawPurchases)) {
             return [];
         }
         const userPurchases = rawPurchases.filter(p => p.UserEmail?.toLowerCase() === email.toLowerCase());
-        return userPurchases.map(p => p.CategoryName);
+        return userPurchases.map(p => ({
+            CategoryName: String(p.CategoryName || ''),
+            PurchaseDate: String(p.PurchaseDate || p.Timestamp || '')
+        }));
     } catch (error) {
         console.error("Failed to fetch purchased categories:", error);
         return [];
