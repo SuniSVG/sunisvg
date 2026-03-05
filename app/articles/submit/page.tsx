@@ -16,7 +16,8 @@ import {
     Image as ImageIcon, 
     FileText, 
     AlertCircle,
-    CheckCircle2
+    CheckCircle2,
+    Link as LinkIcon
 } from 'lucide-react';
 
 export default function SubmitArticlePage() {
@@ -30,6 +31,8 @@ export default function SubmitArticlePage() {
         description: '',
         content: '',
         thumbnailUrl: '',
+        keywords: '',
+        documentUrl: '',
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [previewMode, setPreviewMode] = useState(false);
@@ -54,8 +57,13 @@ export default function SubmitArticlePage() {
             return;
         }
 
-        if (!formData.title.trim() || !formData.content.trim()) {
-            addToast('Tiêu đề và nội dung không được để trống.', 'error');
+        if (!formData.title.trim()) {
+            addToast('Tiêu đề không được để trống.', 'error');
+            return;
+        }
+
+        if (!formData.content.trim() && !formData.documentUrl.trim()) {
+            addToast('Vui lòng nhập nội dung bài viết hoặc cung cấp liên kết tài liệu.', 'error');
             return;
         }
 
@@ -64,12 +72,14 @@ export default function SubmitArticlePage() {
         try {
             const articleData = {
                 Title: formData.title,
-                Category: formData.category,
+                Authors: currentUser['Tên tài khoản'],
                 Abstract: formData.description,
+                Keywords: formData.keywords,
+                Category: formData.category,
+                DocumentURL: formData.documentUrl,
                 Content: formData.content,
                 ThumbnailURL: formData.thumbnailUrl,
-                Authors: currentUser['Tên tài khoản'],
-                Status: 'Pending'
+                submitterEmail: currentUser.Email
             };
 
             const result = await addArticle(articleData, currentUser.Email);
@@ -151,6 +161,19 @@ export default function SubmitArticlePage() {
                             </div>
                         </div>
 
+                        {/* Keywords */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-gray-700">Từ khóa (Keywords)</label>
+                            <input
+                                type="text"
+                                name="keywords"
+                                value={formData.keywords}
+                                onChange={handleChange}
+                                placeholder="Ví dụ: Toán học, Giải tích, Mẹo học tập..."
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none text-sm"
+                            />
+                        </div>
+
                         {/* Description */}
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-gray-700">Mô tả ngắn</label>
@@ -198,12 +221,28 @@ export default function SubmitArticlePage() {
                             </div>
                         </div>
 
+                        {/* Document URL */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                                <LinkIcon className="w-4 h-4 text-gray-400" />
+                                Link tài liệu (Google Drive, PDF...)
+                            </label>
+                            <input
+                                type="url"
+                                name="documentUrl"
+                                value={formData.documentUrl}
+                                onChange={handleChange}
+                                placeholder="https://drive.google.com/..."
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none text-sm font-mono text-gray-600"
+                            />
+                        </div>
+
                         {/* Content */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                                     <FileText className="w-4 h-4 text-gray-400" />
-                                    Nội dung bài viết <span className="text-red-500">*</span>
+                                    Nội dung bài viết
                                 </label>
                                 <button 
                                     type="button"
@@ -230,7 +269,6 @@ export default function SubmitArticlePage() {
                                     rows={15}
                                     placeholder="Viết nội dung bài viết của bạn ở đây..."
                                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none resize-y text-sm leading-relaxed"
-                                    required
                                 />
                             )}
                         </div>
