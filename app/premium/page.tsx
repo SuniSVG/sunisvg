@@ -305,7 +305,7 @@ export default function Premium() {
                 currentUser ? fetchPurchasedCategories(currentUser.Email) : Promise.resolve([])
             ]);
             setArticles(artData.filter(a => a.Status === 'Approved'));
-            setPurchasedCategories(new Set(purchasedData));
+            setPurchasedCategories(new Set(purchasedData.map((item: any) => item.CategoryName)));
         } catch (err) {
             setError('Không thể tải tài liệu Premium. Vui lòng thử lại sau.');
         } finally {
