@@ -581,6 +581,9 @@ export default function Home() {
   const [isPurchasing, setIsPurchasing] = useState<string | null>(null);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [targetExam, setTargetExam] = useState<{ title: string; date: Date } | null>(null);
+
   useEffect(() => {
     router.prefetch('/courses');
     router.prefetch('/forum');
@@ -615,6 +618,49 @@ export default function Home() {
     };
     loadData();
   }, [currentUser]);
+
+  const exams = useMemo(() => [
+    { title: 'HSA 601 - Ngày 1',            date: '07/03/2026', time: '08:00', duration: '180 phút', location: 'Hà Nội, Hưng Yên, Ninh Bình, Thái Nguyên,...', isCountdown: true, type: 'hsa' },
+    { title: 'HSA 601 - Ngày 2',            date: '08/03/2026', time: '08:00', duration: '180 phút', location: 'Hà Nội, Hưng Yên, Ninh Bình, Thái Nguyên,...', type: 'hsa' },
+    { title: 'TSA 2026 - Đợt 2 - Ngày 1',  date: '14/03/2026', time: '08:00', duration: '150 phút', type: 'tsa' },
+    { title: 'TSA 2026 - Đợt 2 - Ngày 2',  date: '15/03/2026', time: '08:00', duration: '150 phút', type: 'tsa' },
+    { title: 'HSA 602 - Ngày 1',            date: '21/03/2026', time: '08:00', duration: '180 phút', location: 'Hà Nội, Hải Phòng, Thanh Hóa,...', type: 'hsa' },
+    { title: 'HSA 602 - Ngày 2',            date: '22/03/2026', time: '08:00', duration: '180 phút', location: 'Hà Nội, Hải Phòng, Thanh Hóa,...', type: 'hsa' },
+    { title: 'V-ACT Đợt 1',                 date: '05/04/2026', time: '08:00', duration: '150 phút', location: 'Đăng ký: 24/01 - 23/02/2026', type: 'vact' },
+    { title: 'V-ACT Đợt 2',                 date: '24/05/2026', time: '08:00', duration: '150 phút', location: 'Đăng ký: 18/04 - 25/04/2026', type: 'vact' },
+    { title: 'Ngữ văn - TN THPT',           date: '11/06/2026',  time: '07:30', duration: '120 phút', type: 'subject', icon: 'book-open' },
+    { title: 'Toán - TN THPT',              date: '11/06/2026',  time: '14:20', duration: '90 phút',  type: 'subject', icon: 'hash' },
+    { title: 'Tự chọn môn 1',               date: '12/06/2026',  time: '07:30', duration: '50 phút',  type: 'subject', icon: 'list' },
+    { title: 'Tự chọn môn 2',               date: '12/06/2026',  time: '08:35', duration: '50 phút',  type: 'subject', icon: 'layers' },
+  ], []);
+
+  useEffect(() => {
+    const now = new Date();
+    let nearestExam: { title: string; date: Date } | null = null;
+
+    exams.forEach(exam => {
+      const [day, month, year] = exam.date.split('/').map(Number);
+      const [hour, minute] = exam.time.split(':').map(Number);
+      const examDate = new Date(year, month - 1, day, hour, minute);
+
+      if (examDate > now && (!nearestExam || examDate < nearestExam.date)) {
+        nearestExam = { title: exam.title, date: examDate };
+      }
+    });
+
+    setTargetExam(nearestExam);
+
+    if (!nearestExam) return;
+
+    const timer = setInterval(() => {
+      const difference = nearestExam!.date.getTime() - new Date().getTime();
+      if (difference > 0) {
+        setTimeLeft({ days: Math.floor(difference / (1000 * 60 * 60 * 24)), hours: Math.floor((difference / (1000 * 60 * 60)) % 24), minutes: Math.floor((difference / 1000 / 60) % 60), seconds: Math.floor((difference / 1000) % 60) });
+      } else { setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 }); clearInterval(timer); }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [exams]);
 
   const cleanCategoryName = useCallback((name: string) =>
     name.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim(), []);
@@ -656,21 +702,6 @@ export default function Home() {
     await refreshCurrentUser();
     addToast('Nạp tiền thành công!', 'success');
   };
-
-  const exams = useMemo(() => [
-    { title: 'HSA 601 - Ngày 1',            date: '07/03/2026', time: '08:00', duration: '180 phút', location: 'Hà Nội, Hưng Yên, Ninh Bình, Thái Nguyên,...', isCountdown: true, type: 'hsa' },
-    { title: 'HSA 601 - Ngày 2',            date: '08/03/2026', time: '08:00', duration: '180 phút', location: 'Hà Nội, Hưng Yên, Ninh Bình, Thái Nguyên,...', type: 'hsa' },
-    { title: 'TSA 2026 - Đợt 2 - Ngày 1',  date: '14/03/2026', time: '08:00', duration: '150 phút', type: 'tsa' },
-    { title: 'TSA 2026 - Đợt 2 - Ngày 2',  date: '15/03/2026', time: '08:00', duration: '150 phút', type: 'tsa' },
-    { title: 'HSA 602 - Ngày 1',            date: '21/03/2026', time: '08:00', duration: '180 phút', location: 'Hà Nội, Hải Phòng, Thanh Hóa,...', type: 'hsa' },
-    { title: 'HSA 602 - Ngày 2',            date: '22/03/2026', time: '08:00', duration: '180 phút', location: 'Hà Nội, Hải Phòng, Thanh Hóa,...', type: 'hsa' },
-    { title: 'V-ACT Đợt 1',                 date: '05/04/2026', time: '08:00', duration: '150 phút', location: 'Đăng ký: 24/01 - 23/02/2026', type: 'vact' },
-    { title: 'V-ACT Đợt 2',                 date: '24/05/2026', time: '08:00', duration: '150 phút', location: 'Đăng ký: 18/04 - 25/04/2026', type: 'vact' },
-    { title: 'Ngữ văn - TN THPT',           date: '11/6/2026',  time: '07:30', duration: '120 phút', type: 'subject', icon: 'book-open' },
-    { title: 'Toán - TN THPT',              date: '11/6/2026',  time: '14:20', duration: '90 phút',  type: 'subject', icon: 'hash' },
-    { title: 'Tự chọn môn 1',               date: '12/6/2026',  time: '07:30', duration: '50 phút',  type: 'subject', icon: 'list' },
-    { title: 'Tự chọn môn 2',               date: '12/6/2026',  time: '08:35', duration: '50 phút',  type: 'subject', icon: 'layers' },
-  ], []);
 
   const cardTypeClass: Record<string, string> = {
     hsa: 'hm-card-hsa', tsa: 'hm-card-tsa', vact: 'hm-card-vact', subject: 'hm-card-subject'
@@ -801,6 +832,33 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+
+                {/* COUNTDOWN TIMER */}
+                {targetExam && (
+                  <div className="text-center" style={{ animation: 'hm-fadeUp .6s .2s ease both' }}>
+                    <div 
+                      className="h-px bg-gradient-to-r from-transparent via-green-200 to-transparent my-6"
+                    />
+                    <p className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
+                      Đếm ngược tới kỳ thi: <span className="text-green-700 font-extrabold">{targetExam.title}</span>
+                    </p>
+                    <div className="flex justify-center gap-3 md:gap-4 mb-6">
+                      {[
+                        { label: 'Ngày', value: timeLeft.days },
+                        { label: 'Giờ', value: timeLeft.hours },
+                        { label: 'Phút', value: timeLeft.minutes },
+                        { label: 'Giây', value: timeLeft.seconds }
+                      ].map((item) => (
+                        <div key={item.label} className="flex flex-col items-center">
+                          <div className="bg-white/60 backdrop-blur-sm rounded-xl w-16 h-16 flex items-center justify-center text-2xl md:text-3xl font-black text-gray-800 shadow-sm border border-white/80 mb-1.5">
+                            {item.value.toString().padStart(2, '0')}
+                          </div>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* ── Dashboard grid ── */}
                 <div className="hm-dash-grid">
