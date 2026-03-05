@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, use } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import {
     Mail, Shield, Wallet, FileText, Settings, Lock,
@@ -14,7 +15,9 @@ import { fetchAccounts, fetchArticles } from '@/services/googleSheetService';
 import type { Account, ScientificArticle } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { parseVNDateToDate } from '@/utils/dateUtils';
+import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { useToast } from '@/contexts/ToastContext';
+import AvatarUploader from '@/components/AvatarUploader';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -99,6 +102,43 @@ const PwField: React.FC<{
     );
 };
 
+const AvatarImage: React.FC<{
+    avatarUrl?: string;
+    fallbackLetter: string;
+    className?: string;
+}> = ({ avatarUrl, fallbackLetter, className = '' }) => {
+    const [imgError, setImgError] = useState(false);
+
+    const directUrl = useMemo(
+        () => (avatarUrl ? convertGoogleDriveUrl(avatarUrl) : ''),
+        [avatarUrl]
+    );
+
+    // Reset error state when URL changes
+    useEffect(() => { setImgError(false); }, [directUrl]);
+
+    if (directUrl && !imgError) {
+        return (
+            <div className={`relative overflow-hidden ${className}`}>
+                <Image
+                    src={directUrl}
+                    alt="Avatar"
+                    fill
+                    className="object-cover"
+                    onError={() => setImgError(true)}
+                    referrerPolicy="no-referrer"
+                />
+            </div>
+        );
+    }
+
+    return (
+        <span className={`flex items-center justify-center font-black text-white select-none ${className}`}>
+            {fallbackLetter}
+        </span>
+    );
+};
+
 // ─── Page Props (Next.js App Router) ──────────────────────────────────────────
 
 interface PageProps {
@@ -111,7 +151,7 @@ export default function ProfilePage({ params }: PageProps) {
     const { email: paramEmail } = use(params);
     const email = decodeURIComponent(paramEmail);
 
-    const { currentUser, updateUsername, updatePassword } = useAuth();
+    const { currentUser, updateUsername, updatePassword, refreshCurrentUser } = useAuth();
     const { addToast } = useToast();
 
     // ── Data state ──────────────────────────────────────────────────────────────
@@ -259,6 +299,11 @@ export default function ProfilePage({ params }: PageProps) {
         }
     };
 
+    const handleAvatarSuccess = async (newUrl: string) => {
+        if (profileUser) setProfileUser({ ...profileUser, AvatarURL: newUrl });
+        await refreshCurrentUser();
+    };
+
     // ── Loading ─────────────────────────────────────────────────────────────────
     if (isLoading) return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -319,12 +364,17 @@ export default function ProfilePage({ params }: PageProps) {
                             transition={{ type: 'spring', stiffness: 220, damping: 18 }}
                             className="relative shrink-0"
                         >
-                            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white/20 backdrop-blur-md ring-4 ring-white/30 shadow-2xl flex items-center justify-center">
-                                <span className="text-5xl font-black text-white leading-none">{avatarLetter}</span>
-                            </div>
-                            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg ring-[3px] ring-white">
-                                <Star className="w-4 h-4 text-white fill-white" />
-                            </div>
+                            {/*
+                             * AvatarUploader handles the upload UI (edit button, etc.).
+                             * We pass the converted URL so it renders the image correctly.
+                             */}
+                            <AvatarUploader
+                                email={profileUser.Email}
+                                currentAvatarUrl={convertGoogleDriveUrl(profileUser.AvatarURL ?? '')}
+                                fallbackLetter={avatarLetter}
+                                isEditable={isMyProfile}
+                                onSuccess={handleAvatarSuccess}
+                            />
                         </motion.div>
 
                         {/* Name / role */}
@@ -397,12 +447,17 @@ export default function ProfilePage({ params }: PageProps) {
                         >
                             <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500" />
                             <div className="p-5">
+                                {/* Mini avatar preview in sidebar */}
                                 <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-100 to-green-200 flex items-center justify-center font-black text-emerald-700 text-lg shrink-0">
-                                        {avatarLetter}
+                                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-green-600 shrink-0 flex items-center justify-center">
+                                        <AvatarImage
+                                            avatarUrl={profileUser.AvatarURL}
+                                            fallbackLetter={avatarLetter}
+                                            className="w-10 h-10 rounded-full text-sm"
+                                        />
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="font-black text-gray-900 text-sm truncate">{profileUser['Tên tài khoản']}</p>
+                                        <p className="text-sm font-black text-gray-800 truncate">{profileUser['Tên tài khoản']}</p>
                                         <p className="text-[10px] text-gray-400 truncate">{profileUser.Email}</p>
                                     </div>
                                 </div>

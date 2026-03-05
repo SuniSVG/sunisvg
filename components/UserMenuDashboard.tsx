@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
     User, 
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { DepositModal } from './DepositModal';
+import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 
 export default function UserMenuDashboard({ onClose }: { onClose?: () => void }) {
     const { currentUser, logout, updatePassword, refreshCurrentUser } = useAuth();
@@ -137,10 +139,20 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                 {/* Header Profile Info */}
                 <div className="flex items-center gap-3 mb-4">
                     <div className="relative">
-                        <div className="w-16 h-16 rounded-full border-2 border-orange-100 overflow-hidden">
-                            <div className="w-full h-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-2xl font-bold">
-                                {currentUser['Tên tài khoản'].charAt(0).toUpperCase()}
-                            </div>
+                        <div className="w-16 h-16 rounded-full border-2 border-orange-100 overflow-hidden relative">
+                            {currentUser.AvatarURL ? (
+                                <Image
+                                    src={convertGoogleDriveUrl(currentUser.AvatarURL)}
+                                    alt={currentUser['Tên tài khoản']}
+                                    fill
+                                    className="object-cover"
+                                    referrerPolicy="no-referrer"
+                                />
+                            ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-2xl font-bold">
+                                    {currentUser['Tên tài khoản'].charAt(0).toUpperCase()}
+                                </div>
+                            )}
                         </div>
                         <button className="absolute bottom-0 right-0 bg-blue-600 text-white p-1 rounded-full border border-white shadow-sm">
                             <Camera className="w-2.5 h-2.5" />

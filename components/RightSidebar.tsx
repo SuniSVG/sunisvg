@@ -6,8 +6,8 @@ import Image from 'next/image';
 import { Icon } from '@/components/shared/Icon';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchCourses, fetchPurchasedCategories, fetchForumPosts, fetchForumComments, addForumPost } from '@/services/googleSheetService';
-import { Course, ForumPost, ForumComment } from '@/types';
+import { fetchCourses, fetchPurchasedCategories, fetchForumPosts, fetchForumComments, addForumPost, fetchAccounts } from '@/services/googleSheetService';
+import { Course, ForumPost, ForumComment, Account } from '@/types';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { parseVNDateToDate, timeAgo } from '@/utils/dateUtils';
 import { ForumPostModal } from '@/components/ForumPostModal';
@@ -158,6 +158,7 @@ export function RightSidebar() {
   const [purchasedCategories, setPurchasedCategories] = useState<Set<string>>(new Set());
   const [forumPosts, setForumPosts] = useState<ForumPost[]>([]);
   const [forumComments, setForumComments] = useState<ForumComment[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [livePosts, setLivePosts] = useState<any[]>([]);
   const [isLiveLoading, setIsLiveLoading] = useState(true);
@@ -206,12 +207,14 @@ export function RightSidebar() {
       }
 
       try {
-        const [coursesData, purchasedData] = await Promise.all([
+        const [coursesData, purchasedData, accountsData] = await Promise.all([
           fetchCourses(),
           currentUser ? fetchPurchasedCategories(currentUser.Email) : Promise.resolve([]),
+          fetchAccounts(),
         ]);
         setCourses(coursesData);
         setPurchasedCategories(new Set(purchasedData.map((p: any) => p.CategoryName)));
+        setAccounts(accountsData);
         localStorage.removeItem('edifyx_virtual_posts');
         await fetchLivePosts(true);
       } catch (error) {
@@ -258,6 +261,7 @@ export function RightSidebar() {
       Title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
       Content: content,
       AuthorName: currentUser['Tên tài khoản'],
+      AuthorEmail: currentUser.Email, // Thêm email để modal hiển thị avatar
       Timestamp: new Date().toISOString(),
       commentCount: 0,
     };
@@ -1364,16 +1368,26 @@ export function RightSidebar() {
                 ))}
               </div>
             ) : livePosts.length > 0 ? (
-              livePosts.map((post, idx) => (
+              livePosts.map((post, idx) => {
+                const authorAccount = accounts.find(acc => 
+                  (post.AuthorEmail && acc.Email.toLowerCase() === post.AuthorEmail.toLowerCase()) || 
+                  acc['Tên tài khoản'] === post.AuthorName
+                );
+                const avatarUrl = authorAccount?.AvatarURL;
+                const profileLink = authorAccount?.Email ? `/profile/${authorAccount.Email}` : '#';
+
+                return (
                 <div
                   key={post.ID}
                   onClick={() => setSelectedPost(post)}
-                  className="post-item"
+                  className="post-item group"
                 >
-                  <div
-                    className="post-avatar"
-                    style={{ background: `linear-gradient(135deg, var(--a1), var(--a2))` }}
-                    ref={el => {
+                  <Link
+                    href={profileLink}
+                    onClick={(e) => e.stopPropagation()}
+                    className="post-avatar transition-transform hover:scale-105"
+                    style={{ background: !avatarUrl ? `linear-gradient(135deg, var(--a1), var(--a2))` : 'transparent' }}
+                    ref={!avatarUrl ? el => {
                       if (el) {
                         const colors = [
                           ['#10b981', '#059669'],
@@ -1386,14 +1400,32 @@ export function RightSidebar() {
                         el.style.setProperty('--a1', a1);
                         el.style.setProperty('--a2', a2);
                       }
-                    }}
+                    } : null}
                   >
-                    {post.AuthorName.charAt(0).toUpperCase()}
-                  </div>
+                    {avatarUrl ? (
+                      <div className="relative w-full h-full overflow-hidden rounded-[10px]">
+                        <Image
+                          src={convertGoogleDriveUrl(avatarUrl)}
+                          alt={post.AuthorName}
+                          fill
+                          className="object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    ) : (
+                      post.AuthorName.charAt(0).toUpperCase()
+                    )}
+                  </Link>
                   <div className="min-w-0 flex-1">
                     <p className="post-title">{post.Title}</p>
                     <div className="post-meta">
-                      <span className="post-author">{post.AuthorName}</span>
+                      <Link 
+                        href={profileLink}
+                        onClick={(e) => e.stopPropagation()}
+                        className="post-author hover:text-emerald-600 transition-colors"
+                      >
+                        {post.AuthorName}
+                      </Link>
                       <div className="post-stats">
                         <span className="post-comment-count">
                           <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
@@ -1406,7 +1438,8 @@ export function RightSidebar() {
                     </div>
                   </div>
                 </div>
-              ))
+              );
+            })
             ) : (
               <p className="text-center py-6" style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
                 Chưa có thảo luận nào

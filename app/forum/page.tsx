@@ -2,11 +2,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { fetchForumPosts, fetchForumComments, fetchAccounts } from '@/services/googleSheetService';
+import Image from 'next/image';
+import { fetchForumPosts, fetchForumComments, fetchAccounts, updatePostUpvote } from '@/services/googleSheetService';
 import type { ForumPost, ForumComment, Account } from '@/types';
 import { Icon } from '@/components/shared/Icon';
-import PostListItem from '@/components/shared/PostListItem';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+import { convertGoogleDriveUrl } from '@/utils/imageUtils';
+import { timeAgo } from '@/utils/dateUtils';
 
 const FORUM_CHANNELS = [
     { name: 'Tất cả', icon: 'grid', color: 'from-emerald-500 to-orange-500' },
@@ -64,6 +67,7 @@ export default function ForumPage() {
     const [currentPage, setCurrentPage] = useState(1);
 
     const { currentUser } = useAuth();
+    const { addToast } = useToast();
     const POSTS_PER_PAGE = 10;
 
     useEffect(() => {
@@ -380,20 +384,85 @@ export default function ForumPage() {
                         {paginatedPosts.length > 0 ? (
                             <>
                                 <div className="space-y-4">
-                                    {paginatedPosts.map(post => (
-                                        <div key={post.ID} className="transform hover:scale-[1.02] transition-all duration-300">
-                                            <PostListItem
-                                                post={{
-                                                    ...post,
-                                                    Timestamp: parseForumDate(post.Timestamp).toISOString()
-                                                }}
-                                                commentCount={commentCounts.get(post.ID) || 0}
-                                                currentUserEmail={currentUser?.Email || null}
-                                                onUpdate={handlePostUpdate}
-                                                authorBadges={[]}
-                                            />
-                                        </div>
-                                    ))}
+                                    {paginatedPosts.map(post => {
+                                        const authorAccount = accounts.find(acc => acc.Email.toLowerCase() === post.AuthorEmail.toLowerCase());
+                                        const avatarUrl = authorAccount?.AvatarURL;
+                                        const isUpvoted = currentUser && (post.UpvotedBy || '').includes(currentUser.Email);
+
+                                        return (
+                                            <div key={post.ID} className="transform hover:scale-[1.02] transition-all duration-300">
+                                                <div className="block bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-3 mb-2">
+                                                                <Link href={`/profile/${post.AuthorEmail}`} className="group flex items-center gap-3">
+                                                                <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 overflow-hidden relative flex-shrink-0 group-hover:ring-2 group-hover:ring-emerald-400 transition-all">
+                                                                    {avatarUrl ? (
+                                                                        <Image
+                                                                            src={convertGoogleDriveUrl(avatarUrl)}
+                                                                            alt={post.AuthorName}
+                                                                            fill
+                                                                            className="object-cover"
+                                                                            referrerPolicy="no-referrer"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500">
+                                                                            {post.AuthorName.charAt(0).toUpperCase()}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-bold text-gray-900 leading-none group-hover:text-emerald-600 transition-colors">{post.AuthorName}</span>
+                                                                    <span className="text-xs text-gray-500 mt-1">{timeAgo(parseForumDate(post.Timestamp).toISOString())}</span>
+                                                                </div>
+                                                                </Link>
+                                                            </div>
+                                                            
+                                                            <Link href={`/forum/${post.ID}`} className="block group">
+                                                                <h3 className="text-lg font-bold text-gray-800 mb-2 line-clamp-2 group-hover:text-emerald-600 transition-colors">{post.Title}</h3>
+                                                                <p className="text-sm text-gray-600 line-clamp-2 mb-3">{post.Content}</p>
+                                                            </Link>
+                                                            
+                                                            <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                                                                <span className="px-2 py-1 rounded-lg bg-gray-100 text-gray-600">
+                                                                    {post.Channel}
+                                                                </span>
+                                                                <span className="flex items-center gap-1">
+                                                                    <Icon name="message-circle" className="w-3.5 h-3.5" />
+                                                                    {commentCounts.get(post.ID) || 0} bình luận
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                if (!currentUser) {
+                                                                    addToast('Vui lòng đăng nhập để bình chọn.', 'info');
+                                                                    return;
+                                                                }
+                                                                const isUpvoted = (post.UpvotedBy || '').split(',').includes(currentUser.Email);
+                                                                const newUpvotes = parseInt(post.Upvotes || '0') + (isUpvoted ? -1 : 1);
+                                                                const newUpvotedBy = isUpvoted
+                                                                    ? (post.UpvotedBy || '').split(',').filter(e => e !== currentUser.Email).join(',')
+                                                                    : [...(post.UpvotedBy || '').split(','), currentUser.Email].filter(Boolean).join(',');
+
+                                                                const updatedPost = { ...post, Upvotes: String(newUpvotes), UpvotedBy: newUpvotedBy };
+                                                                handlePostUpdate(updatedPost);
+                                                                updatePostUpvote(post.ID, currentUser.Email);
+                                                            }}
+                                                            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${
+                                                                isUpvoted ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                                                            }`}
+                                                        >
+                                                            <Icon name="chevron-up" className="w-5 h-5" />
+                                                            <span className="font-bold">{post.Upvotes || 0}</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                                 {renderPagination()}
                             </>

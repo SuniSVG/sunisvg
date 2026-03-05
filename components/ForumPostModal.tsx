@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { Icon } from '@/components/shared/Icon';
-import { ForumPost, ForumComment } from '@/types';
-import { fetchForumComments, addForumComment } from '@/services/googleSheetService';
+import { ForumPost, ForumComment, Account } from '@/types';
+import { fetchForumComments, addForumComment, fetchAccounts } from '@/services/googleSheetService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 
 interface ForumPostModalProps {
   post: ForumPost;
@@ -17,6 +20,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
   const { currentUser } = useAuth();
   const { addToast } = useToast();
   const [comments, setComments] = useState<ForumComment[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,9 +28,13 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
   useEffect(() => {
     const loadComments = async () => {
       try {
-        const allComments = await fetchForumComments(true);
+        const [allComments, allAccounts] = await Promise.all([
+          fetchForumComments(true),
+          fetchAccounts()
+        ]);
         const filtered = allComments.filter(c => c.PostID === post.ID);
         setComments(filtered);
+        setAccounts(allAccounts);
       } catch (error) {
         console.error('Failed to load comments', error);
       } finally {
@@ -70,6 +78,14 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
     }
   };
 
+  const postAuthorAccount = accounts.find(acc => 
+    (post.AuthorEmail && acc.Email.toLowerCase() === post.AuthorEmail.toLowerCase()) || 
+    acc['Tên tài khoản'] === post.AuthorName
+  );
+
+  const authorEmail = post.AuthorEmail || postAuthorAccount?.Email;
+  const profileLink = authorEmail ? `/profile/${authorEmail}` : '#';
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <motion.div 
@@ -81,13 +97,25 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
         {/* Header */}
         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-              {post.AuthorName.charAt(0)}
+            <Link href={profileLink} onClick={onClose} className="group flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold overflow-hidden relative group-hover:ring-2 group-hover:ring-blue-400 transition-all">
+              {postAuthorAccount?.AvatarURL ? (
+                <Image
+                  src={convertGoogleDriveUrl(postAuthorAccount.AvatarURL)}
+                  alt={post.AuthorName}
+                  fill
+                  className="object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                post.AuthorName.charAt(0)
+              )}
             </div>
             <div>
               <h3 className="font-bold text-gray-900 leading-tight">{post.Title}</h3>
-              <p className="text-xs text-gray-500">Bởi {post.AuthorName} • {post.Timestamp || 'Vừa xong'}</p>
+              <p className="text-xs text-gray-500">Bởi <span className="font-bold group-hover:text-blue-600 transition-colors">{post.AuthorName}</span> • {post.Timestamp || 'Vừa xong'}</p>
             </div>
+            </Link>
           </div>
           <button 
             onClick={onClose}
@@ -116,20 +144,36 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
             ) : (
               <div className="space-y-6">
                 {comments.length > 0 ? (
-                  comments.map((comment, idx) => (
-                    <div key={idx} className="flex gap-4">
-                      <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0 text-xs font-bold">
-                        {comment.AuthorName.charAt(0)}
-                      </div>
-                      <div className="flex-1 bg-gray-50 rounded-2xl p-4">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-gray-900">{comment.AuthorName}</span>
-                          <span className="text-[10px] text-gray-400">{comment.Timestamp || 'Vừa xong'}</span>
+                  comments.map((comment, idx) => {
+                    const commenterAccount = accounts.find(acc => acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase());
+                    
+                    return (
+                      <div key={idx} className="flex gap-4">
+                        <Link href={`/profile/${comment.AuthorEmail}`} onClick={onClose} className="flex-shrink-0 group">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0 text-xs font-bold overflow-hidden relative group-hover:ring-2 group-hover:ring-blue-400 transition-all">
+                          {commenterAccount?.AvatarURL ? (
+                            <Image
+                              src={convertGoogleDriveUrl(commenterAccount.AvatarURL)}
+                              alt={comment.AuthorName}
+                              fill
+                              className="object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            comment.AuthorName.charAt(0)
+                          )}
                         </div>
-                        <p className="text-sm text-gray-700 leading-relaxed">{comment.Content}</p>
+                        </Link>
+                        <div className="flex-1 bg-gray-50 rounded-2xl p-4">
+                          <div className="flex items-center justify-between mb-1">
+                            <Link href={`/profile/${comment.AuthorEmail}`} onClick={onClose} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition-colors">{comment.AuthorName}</Link>
+                            <span className="text-[10px] text-gray-400">{comment.Timestamp || 'Vừa xong'}</span>
+                          </div>
+                          <p className="text-sm text-gray-700 leading-relaxed">{comment.Content}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-center py-8 text-gray-400 italic text-sm">Chưa có bình luận nào. Hãy là người đầu tiên!</p>
                 )}

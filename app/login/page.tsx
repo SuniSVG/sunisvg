@@ -377,7 +377,7 @@ function LoginContent() {
                             <div>
                                 <div className="lg-mobile-banner-text">Chào mừng trở lại SuniSVG</div>
                                 <div className="lg-mobile-banner-sub">
-                                    {totalUsers > 0 ? totalUsers.toLocaleString('vi-VN') : '12,547'}+ thành viên đang học tập
+                                    {totalUsers > 0 ? totalUsers.toLocaleString('vi-VN') : '36,180'}+ thành viên đang học tập
                                 </div>
                             </div>
                         </div>

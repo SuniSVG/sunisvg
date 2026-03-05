@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { fetchCourses } from '@/services/googleSheetService';
+import { fetchCourses, fetchPurchaseStats } from '@/services/googleSheetService';
 import type { Course } from '@/types';
 import { Icon } from '@/components/shared/Icon';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
@@ -119,12 +119,15 @@ export default function CoursesPage() {
     const loadCourses = useCallback(async (force: boolean = false) => {
         setIsLoading(true);
         try {
-            const data = await fetchCourses();
+            const [data, stats] = await Promise.all([
+                fetchCourses(),
+                fetchPurchaseStats()
+            ]);
             const processed = data
                 .filter(c => c.Title && String(c.Title).trim() !== '')
                 .map((c, i) => ({ ...c, ID: c.ID || i.toString() }));
             setCourses(processed);
-            setPurchaseStats({});
+            setPurchaseStats(stats);
         } catch (err) {
             setError('Không thể tải danh sách khóa học. Vui lòng thử lại sau.');
         } finally {
@@ -173,9 +176,17 @@ export default function CoursesPage() {
     const totalFreePages = Math.ceil(freeCourses.length / ITEMS_PER_PAGE);
 
     // Helper để lấy số lượng mua (theo Category hoặc ID)
-    const getPurchaseCount = (course: Course) => {
-        return purchaseStats[course.Category] || purchaseStats[course.ID] || 0;
-    };
+const getPurchaseCount = (course: Course) => {
+    const normalize = (s?: string) =>
+        (s || '').replace(/\s*\((?:[\d.,]+\s*đ|Miễn phí|\d+đ)\)$/i, '').trim().toLowerCase();
+    const statsNormalized = Object.fromEntries(
+        Object.entries(purchaseStats).map(([k, v]) => [normalize(k), v])
+    );
+    return statsNormalized[normalize(course.Category)]
+        || statsNormalized[normalize(course.Title)]
+        || statsNormalized[normalize(course.ID)]
+        || 0;
+};
 
     const renderPagination = (currentPage: number, totalPages: number, setPage: (p: number) => void) => {
         if (totalPages <= 1) return null;

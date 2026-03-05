@@ -1,17 +1,28 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { ChevronDown } from 'lucide-react';
 import { Icon } from './shared/Icon';
 import { useAuth } from '@/contexts/AuthContext';
 import UserMenuDashboard from './UserMenuDashboard';
+import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 
 export default function Header() {
   const { currentUser } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
     <header className="bg-green-800 sticky top-0 z-50 shadow-md">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-8 h-full flex-shrink-0">
+        <div className="flex items-center gap-2 lg:gap-8 h-full flex-shrink-0">
+          <button 
+            className="lg:hidden text-white p-2 hover:bg-green-700 rounded-lg transition-colors"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            <ChevronDown className={`w-6 h-6 transition-transform duration-300 ${isMobileMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
           <Link href="/" className="text-2xl font-black text-white tracking-wider flex items-center gap-2">
             SuniSVG
           </Link>
@@ -79,9 +90,23 @@ export default function Header() {
                 {Number(currentUser.Money || 0).toLocaleString('vi-VN')} đ
               </div>
               <div className="relative group h-full flex items-center">
-                <button className="flex items-center gap-2 text-sm font-bold bg-green-700 text-white px-4 py-2 rounded-full hover:bg-green-600 transition-colors shadow-sm border border-green-600">
-                  <Icon name="user" className="w-4 h-4" />
-                  {currentUser['Tên tài khoản']}
+                <button className="flex items-center gap-2 text-sm font-bold bg-green-700 text-white pl-1.5 pr-4 py-1.5 rounded-full hover:bg-green-600 transition-colors shadow-sm border border-green-600">
+                  <div className="relative w-7 h-7 rounded-full overflow-hidden border border-white/20 bg-green-800 flex-shrink-0">
+                    {currentUser.AvatarURL ? (
+                      <Image
+                        src={convertGoogleDriveUrl(currentUser.AvatarURL)}
+                        alt={currentUser['Tên tài khoản']}
+                        fill
+                        className="object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white">
+                        {currentUser['Tên tài khoản']?.charAt(0)?.toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <span className="truncate max-w-[100px]">{currentUser['Tên tài khoản']}</span>
                 </button>
                 {/* Dropdown with transparent bridge */}
                 <div className="absolute right-0 top-full pt-2 w-80 hidden group-hover:block">
@@ -100,6 +125,30 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      {/* Mobile Menu Dropdown */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden absolute top-16 left-0 w-full bg-green-800 border-t border-green-700 shadow-xl animate-in slide-in-from-top-2 duration-200 z-40">
+          <nav className="flex flex-col p-2 space-y-1">
+            {[
+              { href: '/articles', label: 'Thư viện' },
+              { href: '/courses', label: 'Khoá học' },
+              { href: '/teachers', label: 'Giáo viên' },
+              { href: '/exams', label: 'Thi online' },
+              { href: '/forum', label: 'Diễn đàn' },
+            ].map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="px-4 py-3 text-white font-bold hover:bg-green-700 rounded-xl transition-colors flex items-center gap-3"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, use } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { fetchForumPosts, fetchForumComments, addForumComment, fetchAccounts } from '@/services/googleSheetService';
 import type { ForumPost, ForumComment, Account } from '@/types';
@@ -10,6 +11,7 @@ import { Icon } from '@/components/shared/Icon';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { timeAgo } from '@/utils/dateUtils';
+import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import 'katex/dist/katex.min.css';
 
 const InlineMath = dynamic(() => import('react-katex').then(mod => mod.InlineMath), { ssr: false });
@@ -180,6 +182,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
         return timeB - timeA;
     });
 
+    const postAuthorAccount = accounts.find(acc => acc.Email.toLowerCase() === post.AuthorEmail.toLowerCase());
+
     return (
         <div className="min-h-[calc(100vh-64px)] bg-gray-50 py-8">
             <div className="max-w-4xl mx-auto px-4 space-y-8">
@@ -190,12 +194,23 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
 
                 <article className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
                     <div className="flex items-center gap-3 flex-wrap text-sm text-gray-500 mb-6 pb-6 border-b border-gray-100">
-                        <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-lg">
-                            {post.AuthorName.charAt(0)}
+                        <Link href={`/profile/${post.AuthorEmail}`} className="flex items-center gap-3 group">
+                        <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-lg overflow-hidden relative group-hover:ring-2 group-hover:ring-blue-400 transition-all">
+                            {postAuthorAccount?.AvatarURL ? (
+                                <Image
+                                    src={convertGoogleDriveUrl(postAuthorAccount.AvatarURL)}
+                                    alt={post.AuthorName}
+                                    fill
+                                    className="object-cover"
+                                    referrerPolicy="no-referrer"
+                                />
+                            ) : (
+                                post.AuthorName.charAt(0)
+                            )}
                         </div>
                         <div className="flex flex-col">
                             <div className="flex items-center gap-2">
-                                <span className="font-bold text-gray-900">{post.AuthorName}</span>
+                                <span className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{post.AuthorName}</span>
                             </div>
                             <div className="flex items-center gap-2 text-xs mt-1">
                                 <span>trong <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full"># {post.Channel}</span></span>
@@ -203,6 +218,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                 <span>{timeAgo(parseForumDate(post.Timestamp).toISOString())}</span>
                             </div>
                         </div>
+                        </Link>
                     </div>
                     <h1 className="text-3xl font-black text-gray-900 mb-6 leading-tight"><MathRenderer text={post.Title} /></h1>
                     <div className="text-gray-700 leading-relaxed whitespace-pre-wrap text-lg"><MathRenderer text={post.Content} /></div>
@@ -216,8 +232,18 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                     
                     {currentUser ? (
                         <form onSubmit={handleCommentSubmit} className="mb-10 flex items-start gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                            <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold flex-shrink-0">
-                                {currentUser['Tên tài khoản'].charAt(0)}
+                            <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold flex-shrink-0 overflow-hidden relative">
+                                {currentUser.AvatarURL ? (
+                                    <Image
+                                        src={convertGoogleDriveUrl(currentUser.AvatarURL)}
+                                        alt={currentUser['Tên tài khoản']}
+                                        fill
+                                        className="object-cover"
+                                        referrerPolicy="no-referrer"
+                                    />
+                                ) : (
+                                    currentUser['Tên tài khoản'].charAt(0)
+                                )}
                             </div>
                             <div className="flex-grow flex flex-col gap-3">
                                 <textarea
@@ -255,15 +281,28 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                             sortedComments.map(comment => {
                                 const commenterAccount = accounts.find(acc => acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase());
                                 const displayName = commenterAccount ? commenterAccount['Tên tài khoản'] : comment.AuthorName;
+                                const commenterAvatar = commenterAccount?.AvatarURL;
                                 
                                 return (
                                     <div key={comment.ID} className="flex items-start gap-4">
-                                        <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-bold flex-shrink-0 border border-gray-200">
-                                            {displayName.charAt(0)}
+                                        <Link href={`/profile/${comment.AuthorEmail}`} className="flex-shrink-0 group">
+                                        <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-bold border border-gray-200 overflow-hidden relative group-hover:ring-2 group-hover:ring-blue-400 transition-all">
+                                            {commenterAvatar ? (
+                                                <Image
+                                                    src={convertGoogleDriveUrl(commenterAvatar)}
+                                                    alt={displayName}
+                                                    fill
+                                                    className="object-cover"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                displayName.charAt(0)
+                                            )}
                                         </div>
+                                        </Link>
                                         <div className="flex-grow bg-gray-50 p-4 rounded-2xl rounded-tl-none border border-gray-100">
                                             <div className="flex items-center gap-2 flex-wrap mb-2">
-                                                <span className="font-bold text-gray-900">{displayName}</span>
+                                                <Link href={`/profile/${comment.AuthorEmail}`} className="font-bold text-gray-900 hover:text-blue-600 transition-colors">{displayName}</Link>
                                                 <span className="text-xs font-bold text-gray-400 ml-auto">{timeAgo(parseForumDate(comment.Timestamp).toISOString())}</span>
                                             </div>
                                             <div className="text-gray-700 whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>

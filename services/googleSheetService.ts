@@ -1,7 +1,7 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxkdvxwARTrNciG6l5aiBl9wPpmGZGrbYkaj7a-JbGC2IsOhwKneVhOW7EzAX9oOLz5/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwQgijaanayYlnVM9IhIudf4x5Wuh4yFFlCB2OI7vKAfCO6uDmsjTVl62VwKEILa67_/exec';
 
 // --- Caching Layer ---
 interface CacheEntry<T> {
@@ -311,6 +311,42 @@ export const fetchPurchasedCategories = async (email: string): Promise<{ Categor
     } catch (error) {
         console.error("Failed to fetch purchased categories:", error);
         return [];
+    }
+};
+
+export const fetchPurchaseStats = async (): Promise<Record<string, number>> => {
+    try {
+        const rawPurchases = await fetchDataFromAppsScript<any>('Purchases');
+        if (!Array.isArray(rawPurchases)) {
+            return {};
+        }
+        
+        const categoryUsers: Record<string, Set<string>> = {};
+
+        rawPurchases.forEach((p: any) => {
+            let category = String(p.CategoryName || '').trim();
+            const email = String(p.UserEmail || '').trim().toLowerCase();
+            
+            // Loại bỏ phần giá tiền trong ngoặc, ví dụ: "Bài tập 2023 (2.229.000 đ)" -> "Bài tập 2023"
+            // Xử lý cả trường hợp (Miễn phí) hoặc (0 đ)
+            category = category.replace(/\s*\((?:[\d.,]+\s*đ|Miễn phí|0\s*đ)\)$/i, '').trim();
+
+            if (category && email) {
+                if (!categoryUsers[category]) {
+                    categoryUsers[category] = new Set();
+                }
+                categoryUsers[category].add(email);
+            }
+        });
+
+        const stats: Record<string, number> = {};
+        for (const [cat, users] of Object.entries(categoryUsers)) {
+            stats[cat] = users.size;
+        }
+        return stats;
+    } catch (error) {
+        console.error("Failed to fetch purchase stats:", error);
+        return {};
     }
 };
 
@@ -1228,6 +1264,24 @@ export const activateVoucher = async (email: string, code: string): Promise<{ su
             code
         });
         return { success: result.status === 'success', error: result.message, newBalance: result.newBalance };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const uploadAvatar = async (email: string, imageBase64: string, mimeType: string, fileName: string): Promise<{ success: boolean; avatarUrl?: string; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'uploadAvatar',
+            email,
+            imageBase64,
+            mimeType,
+            fileName
+        });
+        if (result.status === 'success') {
+            return { success: true, avatarUrl: result.avatarUrl };
+        }
+        return { success: false, error: result.message };
     } catch (error: any) {
         return { success: false, error: error.message };
     }

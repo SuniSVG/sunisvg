@@ -306,7 +306,7 @@ export default function ProgressPage() {
         if (!acc) {
           console.warn('❌ [Progress] Không tìm thấy email. Danh sách:', accounts.map(a => a.Email));
           setRadarData(DEFAULT_LABELS.map(it => ({ ...it, value: null })));
-          setError('Không tìm thấy tài khoản trong sheet Accounts.');
+          setError('Không tìm thấy tài khoản trong database.');
           return;
         }
 
