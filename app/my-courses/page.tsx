@@ -23,7 +23,7 @@ export default function MyCoursesPage() {
           currentUser ? fetchPurchasedCategories(currentUser.Email) : Promise.resolve([])
         ]);
         setRealCourses(coursesData);
-        setPurchasedCategories(new Set(purchasedData));
+        setPurchasedCategories(new Set(purchasedData.map(item => item.CategoryName)));
       } catch (error) {
         console.error('Failed to load courses', error);
       } finally {
