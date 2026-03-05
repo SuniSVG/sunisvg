@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { addArticle } from '@/services/googleSheetService';
 import { 
     ArrowLeft, 
     Send, 
@@ -61,14 +62,24 @@ export default function SubmitArticlePage() {
         setIsSubmitting(true);
 
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            // In a real app, you would call a service here, e.g.:
-            // await createArticle(formData);
+            const articleData = {
+                Title: formData.title,
+                Category: formData.category,
+                Abstract: formData.description,
+                Content: formData.content,
+                ThumbnailURL: formData.thumbnailUrl,
+                Authors: currentUser['Tên tài khoản'],
+                Status: 'Pending'
+            };
 
-            addToast('Bài viết đã được gửi duyệt thành công!', 'success');
-            router.push('/articles');
+            const result = await addArticle(articleData, currentUser.Email);
+
+            if (result.success) {
+                addToast('Bài viết đã được gửi duyệt thành công!', 'success');
+                router.push('/articles');
+            } else {
+                addToast(result.error || 'Có lỗi xảy ra khi đăng bài.', 'error');
+            }
         } catch (error) {
             console.error(error);
             addToast('Có lỗi xảy ra khi đăng bài.', 'error');
