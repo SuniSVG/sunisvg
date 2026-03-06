@@ -88,7 +88,7 @@ export default function AvatarUploader({
   };
 
   return (
-    <div className="relative group shrink-0 z-20">
+    <div className="relative group shrink-0 z-50">
       <div 
         onClick={handleClick}
         className={`w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white/20 backdrop-blur-md ring-4 ring-white/30 shadow-2xl flex items-center justify-center overflow-hidden relative cursor-pointer`}

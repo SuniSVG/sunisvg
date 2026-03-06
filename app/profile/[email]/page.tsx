@@ -354,7 +354,7 @@ export default function ProfilePage({ params }: PageProps) {
                     />
                 </div>
 
-                <div className="relative z-10 max-w-6xl mx-auto">
+                <div className="relative z-40 max-w-6xl mx-auto">
                     <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6">
 
                         {/* Avatar */}
