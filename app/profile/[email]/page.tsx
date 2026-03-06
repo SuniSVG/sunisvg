@@ -11,7 +11,7 @@ import {
     Loader2, BookOpen, Star, BarChart3, Clock,
     TrendingUp, UserCircle2, ArrowUpRight,
 } from 'lucide-react';
-import { fetchAccounts, fetchArticles } from '@/services/googleSheetService';
+import { fetchAccounts, fetchArticles, getAccountByEmail } from '@/services/googleSheetService';
 import type { Account, ScientificArticle } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { parseVNDateToDate } from '@/utils/dateUtils';
@@ -195,18 +195,15 @@ export default function ProfilePage({ params }: PageProps) {
                     user = currentUser;
                     allArticles = await fetchArticles();
                 } else {
-                    const [accounts, arts] = await Promise.all([
-                        fetchAccounts(),
+                    const [foundUser, arts] = await Promise.all([
+                        getAccountByEmail(email),
                         fetchArticles(),
                     ]);
-                    const found = accounts.find(
-                        (a: Account) => a.Email.toLowerCase() === email.toLowerCase()
-                    );
-                    if (!found) {
+                    if (!foundUser) {
                         if (!cancelled) setError('Không tìm thấy người dùng.');
                         return;
                     }
-                    user = found;
+                    user = foundUser;
                     allArticles = arts;
                 }
 
