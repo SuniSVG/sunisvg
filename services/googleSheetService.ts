@@ -1,7 +1,7 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyH9Q5EeRJdDNeFNxUKcCTMeruak8mVrypC20ZCTMquws4zfeYULbwxCYcJJEb10MB_/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxtbZ4cjQbvCb9cpffo8LQtB-WKqPAr8rDgUAgSpK5ZELFXgLkuWb7QcXLNy_BZzu-0/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -12,6 +12,10 @@ const MAX_MEMORY_CACHE = 50; // Max items in memory
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
+}
+
+if (typeof window !== 'undefined') {
+  localStorage.removeItem('edifyx_cache_post:Accounts');
 }
 
 // --- MEMORY CACHE (LRU) ---
@@ -43,13 +47,32 @@ function decompress(data: string) {
 }
 
 // --- LOCAL STORAGE CACHE ---
-function setLocalCache<T>(key: string, entry: CacheEntry<T>) {
-  if (typeof window === 'undefined') return;
+function setLocalCache(key: string, data: any) {
+  const cacheKey = `edifyx_cache_${key}`;
+  const compressedData = compress(data);
+
+  // Thêm bước kiểm tra kích thước trước khi lưu để tránh lỗi
+  if (compressedData.length > MAX_LOCAL_CACHE) {
+    console.warn(`Data for ${key} is too large for local cache (${(compressedData.length / 1024).toFixed(1)}KB). Skipping.`);
+  }
+
   try {
-    const compressed = compress(entry);
-    if (!compressed || compressed.length > MAX_LOCAL_CACHE) return;
-    localStorage.setItem(`edifyx_cache_${key}`, compressed);
-  } catch (e) { console.warn('LocalStorage full', e); }
+    localStorage.setItem(cacheKey, compressedData);
+  } catch (e) {
+    console.warn('LocalStorage full, clearing old cache...', e);
+    
+    const keysToDelete: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('edifyx_cache_')) keysToDelete.push(k);
+    }
+    keysToDelete.forEach(k => localStorage.removeItem(k));
+    try {
+      localStorage.setItem(cacheKey, compressedData);
+    } catch {
+      console.warn(`Still full after clearing. Skipping local cache for: ${key}`);
+    }
+  }
 }
 
 function getLocalCache<T>(key: string): CacheEntry<T> | null {
@@ -111,11 +134,15 @@ const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeo
 const revalidationRequests = new Map<string, Promise<any>>();
 
 // --- GENERIC FETCH (CACHE + SWR) ---
-const fetchDataFromAppsScript = async <T>(sheetName: string, ignoreCache: boolean = false): Promise<T[]> => {
+const fetchDataFromAppsScript = async <T>(
+  sheetName: string,
+  ignoreCache: boolean = false,
+  skipLocalCache: boolean = false  // ← thêm tham số mới
+): Promise<T[]> => {
   const cacheKey = `post:${sheetName}`;
   let cached = getMemoryCache<T[]>(cacheKey);
 
-  if (!cached && !ignoreCache) {
+  if (!cached && !ignoreCache && !skipLocalCache) {  // ← thêm điều kiện
     cached = getLocalCache<T[]>(cacheKey);
     if (cached) setMemoryCache(cacheKey, cached);
   }
@@ -128,7 +155,7 @@ const fetchDataFromAppsScript = async <T>(sheetName: string, ignoreCache: boolea
           if (res.status === 'success' && Array.isArray(res.data)) {
             const entry = { data: res.data, timestamp: Date.now() };
             setMemoryCache(cacheKey, entry);
-            setLocalCache(cacheKey, entry);
+            if (!skipLocalCache) setLocalCache(cacheKey, entry);  // ← thêm điều kiện
           }
         })
         .finally(() => revalidationRequests.delete(cacheKey));
@@ -141,7 +168,7 @@ const fetchDataFromAppsScript = async <T>(sheetName: string, ignoreCache: boolea
   if (result.status === 'success' && Array.isArray(result.data)) {
     const entry = { data: result.data, timestamp: Date.now() };
     setMemoryCache(cacheKey, entry);
-    setLocalCache(cacheKey, entry);
+    if (!skipLocalCache) setLocalCache(cacheKey, entry);  // ← thêm điều kiện
     return result.data as T[];
   }
   throw new Error(result.message || `Failed to fetch sheet: ${sheetName}`);
@@ -179,51 +206,77 @@ export function clearExpiredCache() {
 }
 clearExpiredCache();
 
-export const getAccountByEmail = async (email: string): Promise<Account | null> => {
-    try {
-        const result = await postToAppsScript({
-            action: 'getAccountByEmail',
-            email: email
-        });
+// Cache riêng cho getAccountByEmail (không dùng localStorage vì nhạy cảm)
+const accountCache = new Map<string, { data: Account; timestamp: number }>();
+const ACCOUNT_CACHE_DURATION = 30 * 1000; // 30 giây
 
-        if (result.status === 'success' && result.data) {
-            const acc = result.data;
-            return {
-                'Tên tài khoản': String(acc['Tên tài khoản'] || '').trim(),
-                'Email': String(acc['Email'] || '').trim(),
-                'Mật khẩu': acc['Mật khẩu'],
-                'Danh hiệu': String(acc['Danh hiệu'] || '').trim(),
-                'Đã xác minh': String(acc['Đã xác minh'] || '').trim(),
-                'Vai trò': String(acc['Vai trò'] || '').trim() as any,
-                'Tuổi': parseInt(acc['Tuổi'] || '0', 10) || 0,
-                'Tổng số câu hỏi đã làm': parseInt(acc['Tổng số câu hỏi đã làm'] || '0', 10) || 0,
-                'Tổng số câu hỏi đã làm đúng': parseInt(acc['Tổng số câu hỏi đã làm đúng'] || '0', 10) || 0,
-                'Tổng số câu hỏi đã làm trong tuần': parseInt(acc['Tổng số câu hỏi đã làm trong tuần'] || '0', 10) || 0,
-                'Tổng số câu hỏi đã làm đúng trong tuần': parseInt(acc['Tổng số câu hỏi đã làm đúng trong tuần'] || '0', 10) || 0,
-                'Tokens': parseInt(acc['Tokens'] || '0', 10) || 0,
-                'Tổng thời gian học': parseInt(acc['Tổng thời gian học'] || '0', 10) || 0,
-                'Thời gian học hôm nay': parseInt(acc['Thời gian học hôm nay'] || '0', 10) || 0,
-                'Ngày cập nhật học': String(acc['Ngày cập nhật học'] || '').trim(),
-                'Money': parseInt(acc['Money'] || '0', 10) || 0,
-                'AvatarURL': String(acc['AvatarURL'] || '').trim(),
-                'Thông tin mô tả': String(acc['Thông tin mô tả'] || '').trim(),
-                'Môn học': String(acc['Môn học'] || '').trim(),
-                'Goal': String(acc['Goal'] || '').trim(),
-                'Voucher': String(acc['Voucher'] || '').trim(),
-                'Tiêu chí 1': acc['Tiêu chí 1'] ?? null,
-                'Tiêu chí 2': acc['Tiêu chí 2'] ?? null,
-                'Tiêu chí 3': acc['Tiêu chí 3'] ?? null,
-                'Tiêu chí 4': acc['Tiêu chí 4'] ?? null,
-                'Tiêu chí 5': acc['Tiêu chí 5'] ?? null,
-                'Tiêu chí 6': acc['Tiêu chí 6'] ?? null,
-            };
-        }
-        return null;
-    } catch (error) {
-        console.error("Failed to fetch account by email:", error);
-        return null;
+export const getAccountByEmail = async (
+  email: string,
+  ignoreCache = false
+): Promise<Account | null> => {
+  const key = email.toLowerCase().trim();
+
+  // Trả cache nếu còn hạn
+  if (!ignoreCache) {
+    const cached = accountCache.get(key);
+    if (cached && Date.now() - cached.timestamp < ACCOUNT_CACHE_DURATION) {
+      return cached.data;
     }
+  }
+
+  try {
+    const result = await postToAppsScript({
+      action: 'getAccountByEmail',
+      email,
+    });
+
+    if (result.status === 'success' && result.data) {
+      const acc = result.data;
+      const account: Account = {
+        'Tên tài khoản': String(acc['Tên tài khoản'] || '').trim(),
+        'Email': String(acc['Email'] || '').trim(),
+        'Mật khẩu': String(acc['Mật khẩu'] || '').trim(),
+        'Danh hiệu': String(acc['Danh hiệu'] || '').trim(),
+        'Đã xác minh': String(acc['Đã xác minh'] || '').trim(),
+        'Vai trò': String(acc['Vai trò'] || '').trim() as any,
+        'Tuổi': parseInt(acc['Tuổi'] || '0', 10) || 0,
+        'Tổng số câu hỏi đã làm': parseInt(acc['Tổng số câu hỏi đã làm'] || '0', 10) || 0,
+        'Tổng số câu hỏi đã làm đúng': parseInt(acc['Tổng số câu hỏi đã làm đúng'] || '0', 10) || 0,
+        'Tổng số câu hỏi đã làm trong tuần': parseInt(acc['Tổng số câu hỏi đã làm trong tuần'] || '0', 10) || 0,
+        'Tổng số câu hỏi đã làm đúng trong tuần': parseInt(acc['Tổng số câu hỏi đã làm đúng trong tuần'] || '0', 10) || 0,
+        'Tokens': parseInt(acc['Tokens'] || '0', 10) || 0,
+        'Tổng thời gian học': parseInt(acc['Tổng thời gian học'] || '0', 10) || 0,
+        'Thời gian học hôm nay': parseInt(acc['Thời gian học hôm nay'] || '0', 10) || 0,
+        'Ngày cập nhật học': String(acc['Ngày cập nhật học'] || '').trim(),
+        'Money': parseInt(acc['Money'] || '0', 10) || 0,
+        'AvatarURL': String(acc['AvatarURL'] || '').trim(),
+        'Thông tin mô tả': String(acc['Thông tin mô tả'] || '').trim(),
+        'Môn học': String(acc['Môn học'] || '').trim(),
+        'Goal': String(acc['Goal'] || '').trim(),
+        'Voucher': String(acc['Voucher'] || '').trim(),
+        'Tiêu chí 1': acc['Tiêu chí 1'] ?? null,
+        'Tiêu chí 2': acc['Tiêu chí 2'] ?? null,
+        'Tiêu chí 3': acc['Tiêu chí 3'] ?? null,
+        'Tiêu chí 4': acc['Tiêu chí 4'] ?? null,
+        'Tiêu chí 5': acc['Tiêu chí 5'] ?? null,
+        'Tiêu chí 6': acc['Tiêu chí 6'] ?? null,
+      };
+
+      // Lưu vào memory cache
+      accountCache.set(key, { data: account, timestamp: Date.now() });
+      return account;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to fetch account by email:', error);
+    return null;
+  }
 };
+
+// Gọi hàm này sau khi update avatar/username để xóa cache cũ
+export function invalidateAccountCache(email: string) {
+  accountCache.delete(email.toLowerCase().trim());
+}
 
 
 // --- Classroom Services ---
@@ -364,23 +417,25 @@ export const getScheduleForUser = async (email: string): Promise<ScheduleEvent[]
 };
 
 export const fetchPurchasedCategories = async (email: string): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
-    try {
-        const result = await postToAppsScript({
-            action: 'getPurchasedCategories',
-            email: email
-        });
-        
-        if (result.status === 'success' && Array.isArray(result.data)) {
-            return result.data.map((p: any) => ({
-                CategoryName: String(p.CategoryName || ''),
-                PurchaseDate: String(p.PurchaseDate || p.Timestamp || '')
-            }));
-        }
-        return [];
-    } catch (error) {
-        console.error("Failed to fetch purchased categories:", error);
-        return [];
+  try {
+    // Thay vì gọi action riêng, ta lấy trực tiếp dữ liệu từ sheet Purchases và lọc tại client
+    // Điều này đảm bảo lấy được cột PurchaseDate chính xác như trong sheet
+    const rawPurchases = await fetchDataFromAppsScript<any>('Purchases');
+
+    if (Array.isArray(rawPurchases)) {
+      const normalizedEmail = email.trim().toLowerCase();
+      return rawPurchases
+        .filter((p: any) => String(p.UserEmail || '').trim().toLowerCase() === normalizedEmail)
+        .map((p: any) => ({
+          CategoryName: String(p.CategoryName || '').trim(),
+          PurchaseDate: String(p.PurchaseDate || p.Timestamp || '').trim(),
+        }));
     }
+    return [];
+  } catch (error) {
+    console.error('Failed to fetch purchased categories:', error);
+    return [];
+  }
 };
 
 export const fetchPurchaseStats = async (): Promise<Record<string, number>> => {
@@ -694,7 +749,7 @@ const rawAccounts = await fetchDataFromAppsScript<any>('Accounts');
 return rawAccounts.map((acc: any) => ({
     'Tên tài khoản': String(acc['Tên tài khoản'] || '').trim(),
     'Email': String(acc['Email'] || '').trim(),
-    'Mật khẩu': acc['Mật khẩu'], // Do not trim passwords
+    'Mật khẩu': String(acc['Mật khẩu'] || ''), // Do not trim passwords
     'Gói đăng ký': String(acc['Gói đăng ký'] || '').trim(),
     'Danh hiệu': String(acc['Danh hiệu'] || '').trim(),
     'Đã xác minh': String(acc['Đã xác minh'] || '').trim(),
@@ -727,7 +782,8 @@ return rawAccounts.map((acc: any) => ({
 };
 
 export const fetchArticles = async (): Promise<ScientificArticle[]> => {
-    const rawArticles = await fetchDataFromAppsScript<any>('Research_Accounts');
+    // Bỏ qua localStorage cho sheet này vì dữ liệu rất lớn, chỉ dùng memory cache.
+    const rawArticles = await fetchDataFromAppsScript<any>('Research_Accounts', false, true);
     return rawArticles.map((art: any) => {
     const id = String(art['ID'] || '').trim();
     return {

@@ -290,7 +290,7 @@ export default function VouchersPage() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <span className="block text-sm font-bold text-gray-600">Đã dùng</span>
+                                        <span className="block text-sm font-bold text-gray-600">Đã kích hoạt</span>
                                         <span className="text-xs text-gray-400">{voucher.Discount}</span>
                                     </div>
                                 </div>

@@ -184,15 +184,54 @@ export default function CourseDetailPage() {
 
                 if (currentUser) {
                     let purchased = false;
+                    
+                    // Hàm chuẩn hóa: xóa khoảng trắng, chuyển thường, xóa phần giá tiền (ví dụ: "(500.000đ)")
+                    const cleanStr = (s: string) => s.trim().replace(/\s*\((?:[\d.,]+\s*đ|Miễn phí|0\s*đ)\)$/i, '').trim().toLowerCase();
+                    const courseCategory = cleanStr(foundCourse.Category || '');
+                    const courseTitle = cleanStr(foundCourse.Title || '');
+                    const courseId = cleanStr(String(foundCourse.ID || ''));
+                    
+                    // 1. Kiểm tra từ danh sách Purchases (API getPurchasedCategories)
                     for (const pc of purchasedCats) {
-                        const cleanPc = pc.CategoryName.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
-                        const cleanCategory = foundCourse.Category?.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
-                        const cleanTitle = foundCourse.Title?.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
-                        if (cleanPc === cleanCategory || cleanPc === cleanTitle) {
+                        const purchaseRecord = cleanStr(pc.CategoryName);
+
+                        // So sánh bản ghi mua hàng với ID, Category, hoặc Title của khóa học.
+                        // So sánh với ID là đáng tin cậy nhất.
+                        if (purchaseRecord && (
+                            purchaseRecord === courseId || 
+                            purchaseRecord === courseCategory || 
+                            purchaseRecord === courseTitle ||
+                            courseTitle.includes(purchaseRecord) ||
+                            courseCategory.includes(purchaseRecord) ||
+                            purchaseRecord.includes(courseTitle) ||
+                            purchaseRecord.includes(courseCategory)
+                        )) {
                             purchased = true;
                             break;
                         }
                     }
+
+                    // 2. Kiểm tra từ cột 'Owned' trong tài khoản (Fallback nếu API Purchases chưa kịp cập nhật hoặc mua thủ công)
+                    if (!purchased && (currentUser as any)['Owned']) {
+                        const ownedList = String((currentUser as any)['Owned']).split(',');
+                        for (const item of ownedList) {
+                            const ownedItem = cleanStr(item);
+                            
+                            if (ownedItem && (
+                                ownedItem === courseId || 
+                                ownedItem === courseCategory || 
+                                ownedItem === courseTitle ||
+                                courseTitle.includes(ownedItem) ||
+                                courseCategory.includes(ownedItem) ||
+                                ownedItem.includes(courseTitle) ||
+                                ownedItem.includes(courseCategory)
+                            )) {
+                                purchased = true;
+                                break;
+                            }
+                        }
+                    }
+
                     setIsPurchased(purchased);
                 }
             } catch (error) {

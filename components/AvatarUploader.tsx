@@ -2,12 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-// import { uploadAvatar } from '@/lib/uploadAvatar';
-
-// TODO: Implement uploadAvatar function in @/lib/uploadAvatar
-const uploadAvatar = async (email: string, file: File): Promise<string> => {
-  throw new Error('uploadAvatar not implemented');
-};
+import { uploadAvatar } from '@/services/googleSheetService';
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 

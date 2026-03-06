@@ -21,11 +21,12 @@ import {
     Smartphone, 
     ChevronRight, 
     Camera,
-    XCircle
+    XCircle,
+    ArrowRight
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { DepositModal } from './DepositModal';
-import { fetchArticles } from '@/services/googleSheetService';
+import { fetchCourses, fetchPurchasedCategories, getAccountByEmail, redeemVoucher } from '@/services/googleSheetService';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 
 export default function UserMenuDashboard({ onClose }: { onClose?: () => void }) {
@@ -34,7 +35,8 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
     const { addToast } = useToast();
 
     // State for stats
-    const [uploadedDocsCount, setUploadedDocsCount] = useState(0);
+    const [voucherCount, setVoucherCount] = useState(0);
+    const [purchasedCoursesCount, setPurchasedCoursesCount] = useState(0);
 
     // Password Change State
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -46,16 +48,62 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
     // Deposit Modal State
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
+    // Voucher Input State
+    const [voucherCode, setVoucherCode] = useState('');
+    const [isRedeeming, setIsRedeeming] = useState(false);
+
     useEffect(() => {
         if (currentUser?.Email) {
-            // Fetch articles submitted by the user to count them.
-            // This is cached by the service, so it's not too expensive.
-            fetchArticles().then(articles => {
-                const userArticles = articles.filter(art => art.SubmitterEmail?.toLowerCase() === currentUser.Email.toLowerCase());
-                setUploadedDocsCount(userArticles.length);
-            }).catch(err => {
-                console.error("Failed to fetch user articles for dashboard", err);
-            });
+            const loadStats = async () => {
+                try {
+                    // Fetch all data in parallel
+                    const [freshUser, allCourses, purchasedItems] = await Promise.all([
+                        getAccountByEmail(currentUser.Email),
+                        fetchCourses(),
+                        fetchPurchasedCategories(currentUser.Email),
+                    ]);
+
+                    // Count vouchers
+                    if (freshUser) {
+                        const vStr = String((freshUser as any)['Voucher'] || '');
+                        // Filter out history codes (wrapped in 00...00) and empty strings
+                        const count = vStr.split(',').filter(c => c.trim() && !(c.trim().startsWith('00') && c.trim().endsWith('00'))).length;
+                        setVoucherCount(count);
+                    }
+
+                    // Count purchased courses (logic from my-courses page)
+                    const cleanStr = (s: string) => s.trim().replace(/\s*\((?:[\d.,]+\s*đ|Miễn phí|0\s*đ)\)$/i, '').trim().toLowerCase();
+                    const purchasedSet = new Set<string>();
+                    
+                    purchasedItems.forEach(item => {
+                        if (item.CategoryName) purchasedSet.add(cleanStr(item.CategoryName));
+                    });
+
+                    if ((currentUser as any)['Owned']) {
+                        const ownedList = String((currentUser as any)['Owned']).split(',');
+                        ownedList.forEach(item => {
+                            if (item) purchasedSet.add(cleanStr(item));
+                        });
+                    }
+
+                    const ownedCourses = allCourses.filter(course => {
+                        const courseId = cleanStr(String(course.ID || ''));
+                        const courseCategory = cleanStr(course.Category || '');
+                        const courseTitle = cleanStr(course.Title || '');
+                        return Array.from(purchasedSet).some(purchased => {
+                            if (!purchased) return false;
+                            if (purchased === courseId || purchased === courseCategory || purchased === courseTitle) return true;
+                            if (courseTitle.includes(purchased) || courseCategory.includes(purchased) || purchased.includes(courseTitle) || purchased.includes(courseCategory)) return true;
+                            return false;
+                        });
+                    });
+                    setPurchasedCoursesCount(ownedCourses.length);
+
+                } catch (err) {
+                    console.error("Failed to fetch user stats for dashboard", err);
+                }
+            };
+            loadStats();
         }
     }, [currentUser]);
 
@@ -96,8 +144,33 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
         addToast('Nạp tiền thành công! Số dư của bạn đã được cập nhật.', 'success');
     };
 
-    // Calculate purchased courses count (placeholder)
-    const purchasedCoursesCount = 0;
+    const handleRedeemSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!voucherCode.trim()) return;
+        
+        setIsRedeeming(true);
+        try {
+            const result = await redeemVoucher(currentUser.Email, voucherCode.trim());
+            if (result.success) {
+                addToast('Áp dụng voucher thành công!', 'success');
+                setVoucherCode('');
+                // Refresh voucher count
+                const freshUser = await getAccountByEmail(currentUser.Email);
+                if (freshUser) {
+                    const vStr = String((freshUser as any)['Voucher'] || '');
+                    const count = vStr.split(',').filter(c => c.trim() && !(c.trim().startsWith('00') && c.trim().endsWith('00'))).length;
+                    setVoucherCount(count);
+                }
+                refreshCurrentUser();
+            } else {
+                addToast(result.error || 'Mã voucher không hợp lệ.', 'error');
+            }
+        } catch (error) {
+            addToast('Có lỗi xảy ra.', 'error');
+        } finally {
+            setIsRedeeming(false);
+        }
+    };
 
     if (showPasswordModal) {
         return (
@@ -209,12 +282,12 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-2 gap-3 mb-5">
-                    <div className="flex flex-col items-center justify-center p-3 bg-green-50/50 rounded-2xl border border-green-100 hover:border-green-200 transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 mb-2">
-                            <FileUp className="w-4 h-4" />
+                    <div className="flex flex-col items-center justify-center p-3 bg-orange-50/50 rounded-2xl border border-orange-100 hover:border-orange-200 transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 mb-2">
+                            <Ticket className="w-4 h-4" />
                         </div>
-                        <p className="text-lg font-black text-gray-900 leading-none mb-1">{uploadedDocsCount}</p>
-                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Tài liệu</p>
+                        <p className="text-lg font-black text-gray-900 leading-none mb-1">{voucherCount}</p>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Voucher</p>
                     </div>
                     <div className="flex flex-col items-center justify-center p-3 bg-green-50/50 rounded-2xl border border-green-100 hover:border-green-200 transition-colors">
                         <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 mb-2">
@@ -227,15 +300,32 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
 
                 {/* Action Buttons - Simplified since Deposit is moved up */}
                 <div className="mb-5">
-                    <Link href="/activate" className="flex items-center justify-center gap-2 w-full bg-gray-900 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-gray-800 transition-colors text-sm">
-                        <Key className="w-4 h-4 text-green-400" />
-                        Kích hoạt Sách ID
-                    </Link>
+                    <form onSubmit={handleRedeemSubmit} className="relative">
+                        <input 
+                            type="text" 
+                            value={voucherCode}
+                            onChange={(e) => setVoucherCode(e.target.value)}
+                            placeholder="Nhập mã voucher..." 
+                            className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all uppercase placeholder:normal-case"
+                        />
+                        <button 
+                            type="submit"
+                            disabled={isRedeeming || !voucherCode.trim()}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {isRedeeming ? (
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <ArrowRight className="w-4 h-4" />
+                            )}
+                        </button>
+                    </form>
                 </div>
 
                 {/* Menu List - Updated styling */}
                 <div className="space-y-1">
                     {[
+                        { href: '/my-courses', icon: GraduationCap, label: 'Khóa học của tôi' },
                         { href: '/orders', icon: ShoppingBag, label: 'Quản lý đơn hàng' },
                         { href: '/vouchers', icon: Ticket, label: 'Kho Voucher' },
                         { href: '/settings', icon: Settings, label: 'Cài đặt tài khoản' },

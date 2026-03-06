@@ -113,7 +113,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, pass: string): Promise<LoginResult> => {
     try {
-        const user = await getAccountByEmail(email);
+        // 1. Chuẩn hóa email: xóa khoảng trắng thừa và chuyển về chữ thường (nếu cần thiết)
+        const user = await getAccountByEmail(email.trim());
 
         if (!user) {
             // User not found. Generic error message for security.
@@ -129,6 +130,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return { success: false, error: 'Đã xảy ra lỗi với tài khoản của bạn. Vui lòng liên hệ quản trị viên.' };
         }
 
+        // DEBUG: In ra console để kiểm tra xem dữ liệu thực tế là gì (F12 -> Console)
+        console.log('Login Debug:', {
+            inputEmail: email,
+            inputPass: pass,
+            storedPass: storedPassword,
+            matchExact: storedPassword === pass,
+            matchTrim: storedPassword === pass.trim()
+        });
+
         // Check verification status first
         if (user['Đã xác minh'] !== 'Có') {
             return {
@@ -141,7 +151,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // The correct, standard, and secure way to compare passwords:
         // A direct, case-sensitive comparison without any transformations.
-        if (storedPassword === pass) {
+        // CẬP NHẬT: Cho phép pass.trim() để hỗ trợ trường hợp bàn phím điện thoại tự thêm dấu cách
+        if (storedPassword === pass || storedPassword === pass.trim()) {
             setCurrentUser(user);
             sessionStorage.setItem('currentUser', JSON.stringify(user));
             startStudySession(); // Automatically start study session on login
