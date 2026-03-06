@@ -34,6 +34,7 @@ const BenefitCard: React.FC<{ icon: string; title: string; description: string; 
 export default function Register() {
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
+    const [schoolName, setSchoolName] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -76,7 +77,7 @@ export default function Register() {
         if (password !== confirmPassword) { setError('Mật khẩu xác nhận không khớp.'); return; }
         if (!validatePassword(password)) { setError('Mật khẩu không đủ mạnh. Vui lòng đáp ứng tất cả các tiêu chí.'); return; }
         setLoading(true);
-        const result = await register(username, email, password);
+        const result = await (register as any)(username, email, password, schoolName);
         setLoading(false);
         if (result.success) {
             router.push(`/verify-email?email=${encodeURIComponent(email)}`);
@@ -449,6 +450,18 @@ export default function Register() {
                                     placeholder="Nhập tên tài khoản của bạn"
                                     value={username}
                                     onChange={e => setUsername(e.target.value)}
+                                />
+                            </div>
+
+                            {/* School Name */}
+                            <div className="rg-field">
+                                <label htmlFor="schoolName" className="rg-label">Tên trường</label>
+                                <input
+                                    id="schoolName" type="text" required
+                                    className="rg-input"
+                                    placeholder="Nhập tên trường của bạn"
+                                    value={schoolName}
+                                    onChange={e => setSchoolName(e.target.value)}
                                 />
                             </div>
 

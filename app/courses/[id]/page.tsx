@@ -115,11 +115,14 @@ export default function CourseDetailPage() {
         const loadData = async () => {
             setIsLoading(true);
             try {
-                const courses = await fetchCourses();
-                
-                console.log('🔍 Searching for course with ID:', params.id);
-                console.log('📦 Available courses:', courses);
-                
+                // Tối ưu hóa: Tải song song tất cả dữ liệu cần thiết
+                const [courses, allArticles, purchasedCats, accounts] = await Promise.all([
+                    fetchCourses(),
+                    fetchPremiumArticles(),
+                    currentUser ? fetchPurchasedCategories(currentUser.Email) : Promise.resolve([]),
+                    fetchAccounts()
+                ]);
+
                 // Tìm course với nhiều cách khác nhau
                 let foundCourse = courses.find(c => String(c.ID) === String(params.id));
                 
@@ -128,7 +131,6 @@ export default function CourseDetailPage() {
                     const index = parseInt(params.id as string);
                     if (!isNaN(index) && index >= 0 && index < courses.length) {
                         foundCourse = courses[index];
-                        console.log('✅ Found course by index:', foundCourse);
                     }
                 }
                 
@@ -139,14 +141,7 @@ export default function CourseDetailPage() {
                     return;
                 }
                 
-                console.log('✅ Found course:', foundCourse);
                 setCourse(foundCourse);
-
-                const [allArticles, purchasedCats, accounts] = await Promise.all([
-                    fetchPremiumArticles(),
-                    currentUser ? fetchPurchasedCategories(currentUser.Email) : Promise.resolve([]),
-                    fetchAccounts()
-                ]);
 
                 const relatedContent = allArticles.filter(
                     art => art.Category.trim().toLowerCase() === foundCourse.Category.trim().toLowerCase() && 

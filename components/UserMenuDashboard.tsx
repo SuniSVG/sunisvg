@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -11,12 +11,10 @@ import {
     LogOut, 
     Key, 
     CreditCard, 
-    Download, 
     ShoppingBag, 
     Ticket, 
-    BookOpen, 
-    Lock, 
-    Type, 
+    FileUp,
+    GraduationCap,
     MessageCircle, 
     ShieldCheck, 
     Facebook, 
@@ -27,12 +25,16 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { DepositModal } from './DepositModal';
+import { fetchArticles } from '@/services/googleSheetService';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 
 export default function UserMenuDashboard({ onClose }: { onClose?: () => void }) {
     const { currentUser, logout, updatePassword, refreshCurrentUser } = useAuth();
     const router = useRouter();
     const { addToast } = useToast();
+
+    // State for stats
+    const [uploadedDocsCount, setUploadedDocsCount] = useState(0);
 
     // Password Change State
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -43,6 +45,19 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
 
     // Deposit Modal State
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+
+    useEffect(() => {
+        if (currentUser?.Email) {
+            // Fetch articles submitted by the user to count them.
+            // This is cached by the service, so it's not too expensive.
+            fetchArticles().then(articles => {
+                const userArticles = articles.filter(art => art.SubmitterEmail?.toLowerCase() === currentUser.Email.toLowerCase());
+                setUploadedDocsCount(userArticles.length);
+            }).catch(err => {
+                console.error("Failed to fetch user articles for dashboard", err);
+            });
+        }
+    }, [currentUser]);
 
     if (!currentUser) return null;
 
@@ -81,6 +96,9 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
         addToast('Nạp tiền thành công! Số dư của bạn đã được cập nhật.', 'success');
     };
 
+    // Calculate purchased courses count (placeholder)
+    const purchasedCoursesCount = 0;
+
     if (showPasswordModal) {
         return (
             <div className="p-4 bg-white rounded-xl w-full max-w-sm mx-auto">
@@ -97,7 +115,7 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                             type="password" 
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                             required
                         />
                     </div>
@@ -107,7 +125,7 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                             type="password" 
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                             required
                         />
                     </div>
@@ -117,14 +135,14 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                             type="password" 
                             value={confirmNewPassword}
                             onChange={(e) => setConfirmNewPassword(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                             required
                         />
                     </div>
                     <button 
                         type="submit" 
                         disabled={isUpdatingPassword}
-                        className="w-full py-2 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 text-sm"
+                        className="w-full py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm"
                     >
                         {isUpdatingPassword ? 'Đang cập nhật...' : 'Lưu thay đổi'}
                     </button>
@@ -135,11 +153,11 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
 
     return (
         <div className="bg-white w-full max-w-sm mx-auto overflow-y-auto max-h-[80vh] scrollbar-hide">
-            <div className="p-4">
+            <div className="p-5">
                 {/* Header Profile Info */}
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-4 mb-6">
                     <div className="relative">
-                        <div className="w-16 h-16 rounded-full border-2 border-orange-100 overflow-hidden relative">
+                        <div className="w-16 h-16 rounded-2xl border-2 border-green-100 overflow-hidden relative shadow-sm">
                             {currentUser.AvatarURL ? (
                                 <Image
                                     src={convertGoogleDriveUrl(currentUser.AvatarURL)}
@@ -149,123 +167,107 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                                     referrerPolicy="no-referrer"
                                 />
                             ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-2xl font-bold">
+                                <div className="w-full h-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white text-2xl font-bold">
                                     {currentUser['Tên tài khoản'].charAt(0).toUpperCase()}
                                 </div>
                             )}
                         </div>
-                        <button className="absolute bottom-0 right-0 bg-blue-600 text-white p-1 rounded-full border border-white shadow-sm">
-                            <Camera className="w-2.5 h-2.5" />
+                        <button className="absolute -bottom-1 -right-1 bg-white text-green-600 p-1 rounded-full border border-green-100 shadow-sm hover:bg-green-50 transition-colors">
+                            <Camera className="w-3 h-3" />
                         </button>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <h1 className="text-base font-bold text-gray-900 truncate">{currentUser['Tên tài khoản']}</h1>
-                        <p className="text-xs text-gray-500 mb-1 truncate">THPT Chuyên Sư Phạm</p>
-                        <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold shadow-sm shadow-orange-200">
+                        <h1 className="text-lg font-bold text-gray-900 truncate">{currentUser['Tên tài khoản']}</h1>
+                        <p className="text-xs text-gray-500 mb-1.5 truncate font-medium">
+                            {currentUser['Danh hiệu'] || 'Chưa cập nhật trường'}
+                        </p>
+                        <div className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-green-100 text-green-700 text-[10px] font-bold border border-green-200">
                             Level {1}
                         </div>
                     </div>
-                    <Link href={`/profile/${currentUser.Email}`} onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                        <ChevronRight className="w-5 h-5" />
+                    <Link href={`/profile/${currentUser.Email}`} onClick={onClose} className="text-gray-300 hover:text-green-600 transition-colors">
+                        <ChevronRight className="w-6 h-6" />
                     </Link>
                 </div>
 
-                <div className="flex items-center justify-between mb-4">
-                    <span className="text-gray-500 text-xs">Số dư tài khoản</span>
-                    <span className="text-base font-bold text-gray-900">{(currentUser.Money || 0).toLocaleString()}đ</span>
+                {/* Balance Card - New Look */}
+                <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl p-4 text-white mb-5 shadow-lg shadow-green-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white opacity-10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                    <div className="relative z-10 flex justify-between items-center">
+                        <div>
+                            <p className="text-green-100 text-xs font-medium mb-1">Số dư khả dụng</p>
+                            <p className="text-2xl font-black tracking-tight">{(currentUser.Money || 0).toLocaleString()}đ</p>
+                        </div>
+                        <button 
+                            onClick={() => setIsDepositModalOpen(true)}
+                            className="bg-white text-green-700 p-2 rounded-xl shadow-sm hover:bg-green-50 transition-colors"
+                        >
+                            <CreditCard className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-100">
-                        <p className="text-lg font-black text-gray-900 mb-0.5">{currentUser.Tokens || 0}</p>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">SP</p>
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                    <div className="flex flex-col items-center justify-center p-3 bg-green-50/50 rounded-2xl border border-green-100 hover:border-green-200 transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 mb-2">
+                            <FileUp className="w-4 h-4" />
+                        </div>
+                        <p className="text-lg font-black text-gray-900 leading-none mb-1">{uploadedDocsCount}</p>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Tài liệu</p>
                     </div>
-                    <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-100">
-                        <p className="text-lg font-black text-gray-900 mb-0.5">{currentUser['Tổng số câu hỏi đã làm'] || 0}</p>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Bài tập đã làm</p>
+                    <div className="flex flex-col items-center justify-center p-3 bg-green-50/50 rounded-2xl border border-green-100 hover:border-green-200 transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 mb-2">
+                            <GraduationCap className="w-4 h-4" />
+                        </div>
+                        <p className="text-lg font-black text-gray-900 leading-none mb-1">{purchasedCoursesCount}</p>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Khoá học</p>
                     </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                    <Link href="/activate" className="flex items-center justify-center gap-1.5 bg-orange-500 text-white font-bold py-2.5 px-3 rounded-xl shadow-md shadow-orange-100 hover:bg-orange-600 transition-colors text-xs">
-                        <Key className="w-4 h-4" />
+                {/* Action Buttons - Simplified since Deposit is moved up */}
+                <div className="mb-5">
+                    <Link href="/activate" className="flex items-center justify-center gap-2 w-full bg-gray-900 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-gray-800 transition-colors text-sm">
+                        <Key className="w-4 h-4 text-green-400" />
                         Kích hoạt Sách ID
                     </Link>
-                    <button 
-                        onClick={() => setIsDepositModalOpen(true)}
-                        className="flex items-center justify-center gap-1.5 bg-green-600 text-white font-bold py-2.5 px-3 rounded-xl shadow-md shadow-green-100 hover:bg-green-700 transition-colors text-xs"
-                    >
-                        <CreditCard className="w-4 h-4" />
-                        Nộp học phí
-                    </button>
                 </div>
 
-                {/* Menu List */}
-                <div className="space-y-0.5">
+                {/* Menu List - Updated styling */}
+                <div className="space-y-1">
+                    {[
+                        { href: '/orders', icon: ShoppingBag, label: 'Quản lý đơn hàng' },
+                        { href: '/vouchers', icon: Ticket, label: 'Kho Voucher' },
+                        { href: '/settings', icon: Settings, label: 'Cài đặt tài khoản' },
+                        { href: '/support', icon: MessageCircle, label: 'Trung tâm hỗ trợ' },
+                        { href: '/policy', icon: ShieldCheck, label: 'Chính sách & Điều khoản' },
+                    ].map((item, idx) => (
+                        <Link key={idx} href={item.href} className="flex items-center gap-3 p-3 hover:bg-green-50 rounded-xl transition-colors group">
+                            <div className="w-9 h-9 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:text-green-600 group-hover:shadow-sm transition-all">
+                                <item.icon className="w-4 h-4" />
+                            </div>
+                            <span className="font-semibold text-gray-700 text-sm flex-1 group-hover:text-green-700 transition-colors">{item.label}</span>
+                            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-green-400" />
+                        </Link>
+                    ))}
 
-                    
-                    <Link href="/orders" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <ShoppingBag className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Quản lý đơn hàng</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </Link>
+                    <div className="h-px bg-gray-100 my-2 mx-4"></div>
 
-                    <Link href="/vouchers" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <Ticket className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Quản lý Voucher</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </Link>
-
-                    <div className="h-px bg-gray-100 my-1 mx-3"></div>
-
-                    <Link href="/settings" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <Settings className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Cài đặt</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </Link>
-
-                    <Link href="/support" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <MessageCircle className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Trung tâm hỗ trợ</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </Link>
-
-                    <Link href="/policy" className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors group">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            <ShieldCheck className="w-4 h-4" />
-                        </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Chính sách & điều khoản sử dụng</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </Link>
-
-                    <div className="h-px bg-gray-100 my-1 mx-3"></div>
-
-                    <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 hover:bg-red-50 rounded-lg transition-colors group text-left">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+                    <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 hover:bg-red-50 rounded-xl transition-colors group text-left">
+                        <div className="w-9 h-9 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:text-red-500 group-hover:shadow-sm transition-all">
                             <LogOut className="w-4 h-4" />
                         </div>
-                        <span className="font-medium text-gray-700 text-sm flex-1">Đăng xuất</span>
-                        <ChevronRight className="w-4 h-4 text-gray-300" />
+                        <span className="font-semibold text-gray-700 text-sm flex-1 group-hover:text-red-600 transition-colors">Đăng xuất</span>
                     </button>
                 </div>
 
                 {/* Bottom Buttons */}
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                    <Link href="/mobile-app" className="flex items-center justify-center gap-1.5 bg-gray-100 text-gray-700 font-bold py-2.5 px-3 rounded-xl hover:bg-gray-200 transition-colors text-xs">
+                <div className="grid grid-cols-2 gap-3 mt-5">
+                    <Link href="/mobile-app" className="flex items-center justify-center gap-2 bg-gray-50 text-gray-600 font-bold py-3 px-3 rounded-xl hover:bg-gray-100 transition-colors text-xs border border-gray-100">
                         <Smartphone className="w-4 h-4" />
                         Tải App
                     </Link>
-                    <Link href="/fanpage" className="flex items-center justify-center gap-1.5 bg-blue-50 text-blue-600 font-bold py-2.5 px-3 rounded-xl hover:bg-blue-100 transition-colors text-xs">
+                    <Link href="/fanpage" className="flex items-center justify-center gap-2 bg-blue-50 text-blue-600 font-bold py-3 px-3 rounded-xl hover:bg-blue-100 transition-colors text-xs border border-blue-100">
                         <Facebook className="w-4 h-4" />
                         Fanpage
                     </Link>

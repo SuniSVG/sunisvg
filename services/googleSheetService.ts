@@ -1,152 +1,182 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwQgijaanayYlnVM9IhIudf4x5Wuh4yFFlCB2OI7vKAfCO6uDmsjTVl62VwKEILa67_/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzqTKqvUxHYs-1vurKVATgDhdE0e9zUrWUveslF6B2atK8joVHfcuqF_Il7jr1wvj6g/exec';
 
-// --- Caching Layer ---
+// --- CONFIG ---
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const MAX_LOCAL_CACHE = 4_000_000; // 4MB limit for local storage
+const MAX_MEMORY_CACHE = 50; // Max items in memory
+
+// --- TYPES ---
 interface CacheEntry<T> {
-  data: T[];
+  data: T;
   timestamp: number;
 }
-const cache = new Map<string, CacheEntry<any>>();
-// Increased cache duration for better performance on subsequent loads.
-const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes cache
+
+// --- MEMORY CACHE (LRU) ---
+const memoryCache = new Map<string, CacheEntry<any>>();
+
+function setMemoryCache<T>(key: string, entry: CacheEntry<T>) {
+  if (memoryCache.size >= MAX_MEMORY_CACHE) {
+    const firstKey = memoryCache.keys().next().value;
+    if (firstKey) memoryCache.delete(firstKey);
+  }
+  memoryCache.set(key, entry);
+}
+
+function getMemoryCache<T>(key: string): CacheEntry<T> | null {
+  return memoryCache.get(key) || null;
+}
+
+// --- COMPRESSION ---
+function compress(data: any) {
+  try {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  } catch { return ""; }
+}
+
+function decompress(data: string) {
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(data))));
+  } catch { return null; }
+}
+
+// --- LOCAL STORAGE CACHE ---
+function setLocalCache<T>(key: string, entry: CacheEntry<T>) {
+  if (typeof window === 'undefined') return;
+  try {
+    const compressed = compress(entry);
+    if (!compressed || compressed.length > MAX_LOCAL_CACHE) return;
+    localStorage.setItem(`edifyx_cache_${key}`, compressed);
+  } catch (e) { console.warn('LocalStorage full', e); }
+}
+
+function getLocalCache<T>(key: string): CacheEntry<T> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const item = localStorage.getItem(`edifyx_cache_${key}`);
+    return item ? decompress(item) : null;
+  } catch { return null; }
+}
+
+// --- REQUEST DEDUPE ---
+const pendingRequests = new Map<string, Promise<any>>();
+
+// --- CORE REQUEST ---
+const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeout = 15000): Promise<any> => {
+  const key = JSON.stringify(payload);
+  if (pendingRequests.has(key)) return pendingRequests.get(key)!;
+
+  const request = (async () => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+
+      const text = await response.text();
+      if (!text) throw new Error('Empty response');
+
+      let result;
+      try { result = JSON.parse(text); } catch { throw new Error('Invalid JSON'); }
+
+      if (result.status === 'error') return result;
+      if (!response.ok) throw new Error(`Server error ${response.status}`);
+
+      return result;
+    } catch (error: any) {
+      if (retries > 0 && (error.name === 'AbortError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+        await new Promise(r => setTimeout(r, 1200));
+        return postToAppsScript(payload, retries - 1, timeout);
+      }
+      throw error;
+    } finally {
+      pendingRequests.delete(key);
+    }
+  })();
+
+  pendingRequests.set(key, request);
+  return request;
+};
+
+// --- REVALIDATION TRACKER ---
 const revalidationRequests = new Map<string, Promise<any>>();
 
-// --- LocalStorage Cache Helpers ---
-const getLocalCache = <T>(key: string): CacheEntry<T> | null => {
-    if (typeof window === 'undefined') return null;
-    try {
-        const item = localStorage.getItem(`edifyx_cache_${key}`);
-        return item ? JSON.parse(item) : null;
-    } catch { return null; }
-};
-
-const setLocalCache = <T>(key: string, data: CacheEntry<T>) => {
-    if (typeof window === 'undefined') return;
-    try {
-        localStorage.setItem(`edifyx_cache_${key}`, JSON.stringify(data));
-    } catch (e) { console.warn('LocalStorage full', e); }
-};
-
-/**
- * Submits data to Google Apps Script using a robust fetch implementation.
- * @param payload The data object to send. It must include an 'action' property.
- * @returns A promise that resolves with the server's JSON response.
- */
-const postToAppsScript = async (payload: { [key: string]: any }, retries = 2): Promise<any> => {
-  try {
-    const response = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
-      redirect: 'follow',
-    });
-
-    const responseText = await response.text();
-    if (!responseText) {
-      if (retries > 0) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return postToAppsScript(payload, retries - 1);
-      }
-      throw new Error('Máy chủ không phản hồi. Vui lòng thử lại sau.');
-    }
-
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Failed to parse response as JSON:', responseText);
-      throw new Error('Phản hồi từ máy chủ không đúng định dạng.');
-    }
-
-    // ✅ Nếu server trả về status error (business logic) → KHÔNG retry, trả về luôn
-    if (result.status === 'error') {
-      return result; // Để caller tự xử lý
-    }
-
-    if (!response.ok) {
-      throw new Error(`Lỗi máy chủ: ${response.status}`);
-    }
-
-    return result;
-
-  } catch (error: any) {
-    console.error('Error posting to Apps Script:', error);
-
-    // ✅ Chỉ retry khi lỗi NETWORK, không retry lỗi business logic
-    if (retries > 0 && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      return postToAppsScript(payload, retries - 1);
-    }
-
-    if (error.message.includes('Failed to fetch')) {
-      throw new Error('Không thể kết nối tới máy chủ. Vui lòng kiểm tra lại đường truyền hoặc thử lại sau ít phút.');
-    }
-    throw new Error(error.message || 'Yêu cầu tới máy chủ thất bại.');
-  }
-};
-
-const fetchDataFromAppsScript = async <T,>(sheetName: string, ignoreCache: boolean = false): Promise<T[]> => {
+// --- GENERIC FETCH (CACHE + SWR) ---
+const fetchDataFromAppsScript = async <T>(sheetName: string, ignoreCache: boolean = false): Promise<T[]> => {
   const cacheKey = `post:${sheetName}`;
-  
-  // 1. Check Memory Cache
-  let cachedEntry = cache.get(cacheKey);
+  let cached = getMemoryCache<T[]>(cacheKey);
 
-  // 2. If not in memory, check LocalStorage (Persistent Cache)
-  if (!cachedEntry && !ignoreCache) {
-      cachedEntry = getLocalCache<T>(cacheKey) || undefined;
-      if (cachedEntry) {
-          cache.set(cacheKey, cachedEntry); // Promote to memory
-      }
+  if (!cached && !ignoreCache) {
+    cached = getLocalCache<T[]>(cacheKey);
+    if (cached) setMemoryCache(cacheKey, cached);
   }
 
-  // Stale-While-Revalidate Implementation
-  if (cachedEntry && !ignoreCache) {
-    const isStale = Date.now() - cachedEntry.timestamp > CACHE_DURATION;
-    if (isStale && !revalidationRequests.has(cacheKey)) {
-        const revalidationPromise = postToAppsScript({
-            action: 'getSheetData',
-            sheetName: sheetName,
-        }).then(result => {
-            if (result.status === 'success' && Array.isArray(result.data)) {
-                const newEntry = { data: result.data, timestamp: Date.now() };
-                cache.set(cacheKey, newEntry);
-                setLocalCache(cacheKey, newEntry); // Persist to LocalStorage
-            }
-        }).catch(error => {
-            console.error(`Background revalidation for ${sheetName} failed:`, error);
-        }).finally(() => {
-            // Clean up the promise from the map once it's done.
-            revalidationRequests.delete(cacheKey);
-        });
-        revalidationRequests.set(cacheKey, revalidationPromise);
+  if (cached && !ignoreCache) {
+    const stale = Date.now() - cached.timestamp > CACHE_DURATION;
+    if (stale && !revalidationRequests.has(cacheKey)) {
+      const p = postToAppsScript({ action: 'getSheetData', sheetName })
+        .then(res => {
+          if (res.status === 'success' && Array.isArray(res.data)) {
+            const entry = { data: res.data, timestamp: Date.now() };
+            setMemoryCache(cacheKey, entry);
+            setLocalCache(cacheKey, entry);
+          }
+        })
+        .finally(() => revalidationRequests.delete(cacheKey));
+      revalidationRequests.set(cacheKey, p);
     }
-    // Return stale or fresh data from cache immediately.
-    return Promise.resolve(cachedEntry.data as T[]);
+    return cached.data;
   }
 
-  // If no cache exists, perform a blocking fetch.
-  try {
-    const result = await postToAppsScript({
-      action: 'getSheetData',
-      sheetName: sheetName,
-    });
-    
-    if (result.status === 'success' && Array.isArray(result.data)) {
-      const newEntry = { data: result.data, timestamp: Date.now() };
-      cache.set(cacheKey, newEntry);
-      setLocalCache(cacheKey, newEntry); // Persist to LocalStorage
-      return result.data as T[];
-    }
-    
-    throw new Error(result.message || `Failed to fetch sheet via Apps Script: ${sheetName}`);
-
-  } catch (error) {
-    console.error(`Failed to fetch sheet: ${sheetName} with no cache available.`, error);
-    throw error;
+  const result = await postToAppsScript({ action: 'getSheetData', sheetName });
+  if (result.status === 'success' && Array.isArray(result.data)) {
+    const entry = { data: result.data, timestamp: Date.now() };
+    setMemoryCache(cacheKey, entry);
+    setLocalCache(cacheKey, entry);
+    return result.data as T[];
   }
+  throw new Error(result.message || `Failed to fetch sheet: ${sheetName}`);
 };
+
+// --- PAGINATION & SEARCH API ---
+export async function fetchSheetPage<T>(sheetName: string, offset: number, limit: number, query?: Record<string, any>): Promise<T[]> {
+  const res = await postToAppsScript({ action: "getSheetPage", sheetName, offset, limit, query });
+  return res.data || [];
+}
+
+export async function searchSheet<T>(sheetName: string, keyword: string): Promise<T[]> {
+  const res = await postToAppsScript({ action: "searchSheet", sheetName, keyword });
+  return res.data || [];
+}
+
+export async function fetchQuestionsPage(offset: number, limit: number, subject?: string): Promise<any[]> {
+  const result = await postToAppsScript({ action: "getQuestionsPage", offset, limit, subject });
+  return result.data || [];
+}
+
+// --- CACHE CLEANUP ---
+export function clearExpiredCache() {
+  if (typeof window === 'undefined') return;
+  Object.keys(localStorage).forEach(key => {
+    if (!key.startsWith('edifyx_cache_')) return;
+    try {
+      const item = localStorage.getItem(key);
+      if (item) {
+        const entry = decompress(item);
+        if (entry && Date.now() - entry.timestamp > CACHE_DURATION * 5) localStorage.removeItem(key);
+      }
+    } catch {}
+  });
+}
+clearExpiredCache();
 
 export const getAccountByEmail = async (email: string): Promise<Account | null> => {
     try {
@@ -763,13 +793,14 @@ return rawComments.map((c: any) => ({
 }));
 };
 
-export const registerUser = async (userData: Pick<Account, 'Tên tài khoản' | 'Email' | 'Mật khẩu'>): Promise<{ success: boolean; error?: string }> => {
+export const registerUser = async (userData: Pick<Account, 'Tên tài khoản' | 'Email' | 'Mật khẩu'> & { schoolName?: string }): Promise<{ success: boolean; error?: string }> => {
     try {
         const payload = {
             action: 'registerUser',
             username: userData['Tên tài khoản'],
             email: userData.Email,
             password: userData['Mật khẩu'],
+            schoolName: userData.schoolName || '',
         };
         const result = await postToAppsScript(payload);
         if (result.status === 'success') {

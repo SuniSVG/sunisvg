@@ -21,12 +21,42 @@ import {
     Users,
     Star,
     CheckCircle2,
-    ArrowRight
+    ArrowRight,
+    X,
+    Send
 } from 'lucide-react';
 
 export default function SupportPage() {
     const [searchFocused, setSearchFocused] = useState(false);
     const [searchValue, setSearchValue] = useState('');
+    
+    // Chat Widget State
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [chatMessages, setChatMessages] = useState<{text: string, isUser: boolean}[]>([]);
+    const [chatInput, setChatInput] = useState('');
+    const [isChatLoading, setIsChatLoading] = useState(false);
+
+    const handleSendChat = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!chatInput.trim()) return;
+
+        const userMsg = chatInput;
+        setChatInput('');
+        setChatMessages(prev => [...prev, { text: userMsg, isUser: true }]);
+
+        // Hiển thị trạng thái "đang nhập" hoặc loading giả
+        setIsChatLoading(true);
+
+        // Kéo dài thời gian đoạn chat giả (Simulation Delay)
+        // Giữ trạng thái này lâu hơn để tạo cảm giác "đang xử lý" hoặc chờ server
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        setChatMessages(prev => [...prev, { 
+            text: "Cảm ơn bạn đã liên hệ. Nhân viên hỗ trợ sẽ phản hồi trong giây lát.", 
+            isUser: false 
+        }]);
+        setIsChatLoading(false);
+    };
 
     const popularTopics = [
         {
@@ -303,7 +333,10 @@ export default function SupportPage() {
                                 <p className="text-blue-100 mb-6 leading-relaxed">
                                     Trò chuyện trực tiếp với đội ngũ hỗ trợ. Phản hồi trong vòng <span className="font-bold text-white">2 phút</span>.
                                 </p>
-                                <button className="bg-white text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition-all w-full group/btn hover:scale-105">
+                                <button 
+                                    onClick={() => setIsChatOpen(true)}
+                                    className="bg-white text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition-all w-full group/btn hover:scale-105"
+                                >
                                     <span className="flex items-center justify-center gap-2">
                                         Bắt đầu chat
                                         <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
@@ -410,6 +443,60 @@ export default function SupportPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Fake Chat Modal */}
+            {isChatOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[600px]">
+                        <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
+                            <div className="flex items-center gap-2">
+                                <MessageCircle className="w-5 h-5" />
+                                <span className="font-bold">Hỗ trợ trực tuyến</span>
+                            </div>
+                            <button onClick={() => setIsChatOpen(false)} className="hover:bg-blue-700 p-1 rounded-full transition">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 p-4 overflow-y-auto bg-gray-50 space-y-4 min-h-[300px]">
+                            <div className="flex justify-start">
+                                <div className="bg-white border border-gray-200 text-gray-800 p-3 rounded-2xl rounded-tl-none max-w-[80%] shadow-sm text-sm">
+                                    Xin chào! Tôi có thể giúp gì cho bạn hôm nay?
+                                </div>
+                            </div>
+                            {chatMessages.map((msg, idx) => (
+                                <div key={idx} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`p-3 rounded-2xl max-w-[80%] shadow-sm text-sm ${
+                                        msg.isUser ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'
+                                    }`}>
+                                        {msg.text}
+                                    </div>
+                                </div>
+                            ))}
+                            {isChatLoading && (
+                                <div className="flex justify-start">
+                                    <div className="bg-gray-200 text-gray-500 p-3 rounded-2xl rounded-tl-none text-xs animate-pulse">
+                                        Đang nhập...
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <form onSubmit={handleSendChat} className="p-4 bg-white border-t border-gray-100 flex gap-2">
+                            <input 
+                                type="text" 
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                placeholder="Nhập tin nhắn..." 
+                                className="flex-1 bg-gray-100 border-0 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                            <button type="submit" className="bg-blue-600 text-white p-2 rounded-xl hover:bg-blue-700 transition">
+                                <Send className="w-5 h-5" />
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Custom animations */}
             <style jsx>{`
