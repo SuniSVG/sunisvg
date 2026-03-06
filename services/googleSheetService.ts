@@ -1,7 +1,7 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzkNri19VZsJvFBBYP2tDiGPZUZOPPhiFt_KT7gVEEJbiQ-KcBU4a5IPtTCa8gDVNW9/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyi16OgOjTijLdo7mpQJE2_rUmgdKMljPA9VcZhJXW1eYtAUvJ9cWDLGbHzDhnr2AAX/exec';
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes

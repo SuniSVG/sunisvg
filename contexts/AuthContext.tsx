@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
-import { fetchAccounts, registerUser, resendVerificationEmail as resendVerificationEmailService, updateUserQuizStats, updateStudyTime, requestPasswordReset as requestPasswordResetService, resetPasswordWithOTP as resetPasswordWithOTPService, updateUsername as updateUsernameService, updatePassword as updatePasswordService, getAccountByEmail } from '@/services/googleSheetService';
+import { registerUser, resendVerificationEmail as resendVerificationEmailService, updateUserQuizStats, updateStudyTime, requestPasswordReset as requestPasswordResetService, resetPasswordWithOTP as resetPasswordWithOTPService, updateUsername as updateUsernameService, updatePassword as updatePasswordService, getAccountByEmail } from '@/services/googleSheetService';
 import type { Account } from '@/types';
 import { useToast } from './ToastContext';
 

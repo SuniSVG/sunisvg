@@ -11,7 +11,7 @@ import {
     Loader2, BookOpen, Star, BarChart3, Clock,
     TrendingUp, UserCircle2, ArrowUpRight,
 } from 'lucide-react';
-import { fetchAccounts, fetchArticles, getAccountByEmail } from '@/services/googleSheetService';
+import { fetchArticles, getAccountByEmail } from '@/services/googleSheetService';
 import type { Account, ScientificArticle } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { parseVNDateToDate } from '@/utils/dateUtils';

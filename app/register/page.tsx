@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Icon } from '@/components/shared/Icon';
-import { fetchAccounts } from '@/services/googleSheetService';
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -49,9 +48,7 @@ export default function Register() {
     const router = useRouter();
 
     useEffect(() => {
-        fetchAccounts()
-            .then(a => setTotalUsers(a.length))
-            .catch(() => setTotalUsers(2000));
+        setTotalUsers(2500); // Sử dụng số tĩnh hoặc API đếm riêng để tránh tải nặng
     }, []);
 
     const validatePassword = (pass: string) => {
