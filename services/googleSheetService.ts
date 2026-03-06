@@ -1,7 +1,7 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyi16OgOjTijLdo7mpQJE2_rUmgdKMljPA9VcZhJXW1eYtAUvJ9cWDLGbHzDhnr2AAX/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyH9Q5EeRJdDNeFNxUKcCTMeruak8mVrypC20ZCTMquws4zfeYULbwxCYcJJEb10MB_/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -78,6 +78,7 @@ const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeo
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload),
         signal: controller.signal,
+        redirect: 'follow', // ✅ Quan trọng: Tự động follow redirect của Google Apps Script
       });
       clearTimeout(id);
 
@@ -1338,20 +1339,47 @@ export const activateVoucher = async (email: string, code: string): Promise<{ su
     }
 };
 
-export const uploadAvatar = async (email: string, imageBase64: string, mimeType: string, fileName: string): Promise<{ success: boolean; avatarUrl?: string; error?: string }> => {
-    try {
-        const result = await postToAppsScript({
-            action: 'uploadAvatar',
-            email,
-            imageBase64,
-            mimeType,
-            fileName
-        });
-        if (result.status === 'success') {
-            return { success: true, avatarUrl: result.avatarUrl };
-        }
-        return { success: false, error: result.message };
-    } catch (error: any) {
-        return { success: false, error: error.message };
-    }
-};
+export async function uploadAvatar(
+  email: string,
+  imageFile: File
+): Promise<string> {
+  const compressed = await compressImage(imageFile, 400, 0.8);
+  const base64 = compressed.split(',')[1];
+
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action:      'uploadAvatar',
+      email,
+      imageBase64: base64,
+      mimeType:    'image/jpeg',
+      fileName:    `${email}_avatar.jpg`,
+    }),
+  });
+
+  if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+  const result = await res.json();
+  if (result.status !== 'success') throw new Error(result.message ?? 'Upload thất bại');
+  return result.avatarUrl as string;
+}
+
+function compressImage(file: File, maxSize = 400, quality = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ratio = Math.min(maxSize / img.width, maxSize / img.height);
+        canvas.width  = Math.round(img.width  * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+}
