@@ -180,9 +180,48 @@ clearExpiredCache();
 
 export const getAccountByEmail = async (email: string): Promise<Account | null> => {
     try {
-        const accounts = await fetchAccounts();
-        const account = accounts.find(acc => acc.Email.toLowerCase() === email.toLowerCase());
-        return account || null;
+        const result = await postToAppsScript({
+            action: 'getAccountByEmail',
+            email: email
+        });
+
+        if (result.status === 'success' && result.data) {
+            const acc = result.data;
+            return {
+                'Tên tài khoản': String(acc['Tên tài khoản'] || '').trim(),
+                'Email': String(acc['Email'] || '').trim(),
+                'Mật khẩu': acc['Mật khẩu'],
+                'Gói đăng ký': String(acc['Gói đăng ký'] || '').trim(),
+                'Danh hiệu': String(acc['Danh hiệu'] || '').trim(),
+                'Đã xác minh': String(acc['Đã xác minh'] || '').trim(),
+                'Vai trò': String(acc['Vai trò'] || '').trim() as any,
+                'Đặc biệt': String(acc['Đặc biệt'] || '').trim(),
+                'Phái': String(acc['Phái'] || '').trim() as any,
+                'Tuổi': parseInt(acc['Tuổi'] || '0', 10) || 0,
+                'Tổng số câu hỏi đã làm': parseInt(acc['Tổng số câu hỏi đã làm'] || '0', 10) || 0,
+                'Tổng số câu hỏi đã làm đúng': parseInt(acc['Tổng số câu hỏi đã làm đúng'] || '0', 10) || 0,
+                'Tổng số câu hỏi đã làm trong tuần': parseInt(acc['Tổng số câu hỏi đã làm trong tuần'] || '0', 10) || 0,
+                'Tổng số câu hỏi đã làm đúng trong tuần': parseInt(acc['Tổng số câu hỏi đã làm đúng trong tuần'] || '0', 10) || 0,
+                'Tokens': parseInt(acc['Tokens'] || '0', 10) || 0,
+                'Tổng thời gian học': parseInt(acc['Tổng thời gian học'] || '0', 10) || 0,
+                'Thời gian học hôm nay': parseInt(acc['Thời gian học hôm nay'] || '0', 10) || 0,
+                'Ngày cập nhật học': String(acc['Ngày cập nhật học'] || '').trim(),
+                'Money': parseInt(acc['Money'] || '0', 10) || 0,
+                'AvatarURL': String(acc['AvatarURL'] || '').trim(),
+                'Thông tin mô tả': String(acc['Thông tin mô tả'] || '').trim(),
+                'Môn học': String(acc['Môn học'] || '').trim(),
+                'Owned': String(acc['Owned'] || '').trim(),
+                'Goal': String(acc['Goal'] || '').trim(),
+                'Voucher': String(acc['Voucher'] || '').trim(),
+                'Tiêu chí 1': acc['Tiêu chí 1'] ?? null,
+                'Tiêu chí 2': acc['Tiêu chí 2'] ?? null,
+                'Tiêu chí 3': acc['Tiêu chí 3'] ?? null,
+                'Tiêu chí 4': acc['Tiêu chí 4'] ?? null,
+                'Tiêu chí 5': acc['Tiêu chí 5'] ?? null,
+                'Tiêu chí 6': acc['Tiêu chí 6'] ?? null,
+            };
+        }
+        return null;
     } catch (error) {
         console.error("Failed to fetch account by email:", error);
         return null;
@@ -329,15 +368,18 @@ export const getScheduleForUser = async (email: string): Promise<ScheduleEvent[]
 
 export const fetchPurchasedCategories = async (email: string): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
     try {
-        const rawPurchases = await fetchDataFromAppsScript<any>('Purchases');
-        if (!Array.isArray(rawPurchases)) {
-            return [];
+        const result = await postToAppsScript({
+            action: 'getPurchasedCategories',
+            email: email
+        });
+        
+        if (result.status === 'success' && Array.isArray(result.data)) {
+            return result.data.map((p: any) => ({
+                CategoryName: String(p.CategoryName || ''),
+                PurchaseDate: String(p.PurchaseDate || p.Timestamp || '')
+            }));
         }
-        const userPurchases = rawPurchases.filter(p => p.UserEmail?.toLowerCase() === email.toLowerCase());
-        return userPurchases.map(p => ({
-            CategoryName: String(p.CategoryName || ''),
-            PurchaseDate: String(p.PurchaseDate || p.Timestamp || '')
-        }));
+        return [];
     } catch (error) {
         console.error("Failed to fetch purchased categories:", error);
         return [];

@@ -113,13 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, pass: string): Promise<LoginResult> => {
     try {
-        const accounts = await fetchAccounts();
-        
-        // Find user by email, case-insensitively for better UX.
-        const normalizedInputEmail = email.trim().toLowerCase();
-        const user = accounts.find(
-            (acc) => acc.Email && acc.Email.trim().toLowerCase() === normalizedInputEmail
-        );
+        const user = await getAccountByEmail(email);
 
         if (!user) {
             // User not found. Generic error message for security.
@@ -212,9 +206,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (username: string, email: string, pass: string,   schoolName: string) => {
     try {
-        const accounts = await fetchAccounts();
-        const userExists = accounts.some(acc => acc.Email.toLowerCase() === email.toLowerCase());
-        if (userExists) {
+        const existingUser = await getAccountByEmail(email);
+        if (existingUser) {
             return { success: false, error: 'Email này đã được sử dụng.' };
         }
       
