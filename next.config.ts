@@ -53,6 +53,22 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+                protocol: 'https',
+                hostname: 'i.ytimg.com',
+            },
+            {
+                protocol: 'https',
+                hostname: 'img.youtube.com',
+            },
+            {
+                protocol: 'https',
+                hostname: 'drive.google.com', // Giữ lại nếu bạn đang dùng ảnh từ Drive
+            },
+            {
+                protocol: 'https',
+                hostname: 'lh3.googleusercontent.com', // Cho avatar Google
+            },
     ],
   },
   output: 'standalone',
@@ -70,3 +86,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

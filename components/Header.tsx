@@ -33,6 +33,9 @@ export default function Header() {
             <Link href="/courses" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Khoá học
             </Link>
+            <Link href="/co-learning" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
+              Co - Learning
+            </Link>
             <Link href="/teachers" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Giáo viên
             </Link>
