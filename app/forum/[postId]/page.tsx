@@ -135,11 +135,10 @@ interface CommentInputProps {
     onCancel?: () => void;
     placeholder?: string;
     autoFocus?: boolean;
-    initialContent?: string;
 }
 
-function CommentInput({ postId, parentId, onSuccess, onCancel, placeholder, autoFocus, initialContent }: CommentInputProps) {
-    const [content, setContent] = useState(initialContent || '');
+function CommentInput({ postId, parentId, onSuccess, onCancel, placeholder, autoFocus }: CommentInputProps) {
+    const [content, setContent] = useState('');
     const [images, setImages] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -329,14 +328,7 @@ function CommentItem({ comment, allComments, accounts, postId, onReplySuccess, s
                     </div>
                     {isReplying && (
                         <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <CommentInput 
-                                postId={postId} 
-                                parentId={comment.ID} 
-                                onSuccess={(newC) => { onReplySuccess(newC); setIsReplying(false); }} 
-                                onCancel={() => setIsReplying(false)} 
-                                autoFocus 
-                                initialContent={`@${displayName} `}
-                            />
+                            <CommentInput postId={postId} parentId={comment.ID} onSuccess={(newC) => { onReplySuccess(newC); setIsReplying(false); }} onCancel={() => setIsReplying(false)} autoFocus />
                         </div>
                     )}
                 </div>
@@ -510,6 +502,19 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                     </div>
                                 )}
                                 <div className="mt-4">
+                                    <FileAttachmentList files={files} />
+                                </div>
+                            </>
+                        );
+                    })()}
+
+                    {/* Hiển thị tài liệu đính kèm (DocURLs) */}
+                    {post.DocURLs && post.DocURLs.trim() && (() => {
+                        const { files } = parseAttachments(post.DocURLs);
+                        return (
+                            <>
+                                <div className="mt-6 pt-6 border-t border-gray-100">
+                                    <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2"><Icon name="paperclip" className="w-4 h-4" /> Tài liệu đính kèm</h4>
                                     <FileAttachmentList files={files} />
                                 </div>
                             </>

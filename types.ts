@@ -100,6 +100,7 @@ export interface ForumPost {
   Upvotes: string;
   UpvotedBy: string;
   ImageURLs?: string; 
+  DocURLs?: string;
 }
 
 export interface ForumComment {

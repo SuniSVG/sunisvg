@@ -24,6 +24,7 @@ export default function CreatePostPage() {
     
     // Image upload state
     const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+    const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const tempPostId = useMemo(() => crypto.randomUUID(), []);
 
@@ -56,8 +57,37 @@ export default function CreatePostPage() {
         }
     };
 
+    const handleDocSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+
+        const remaining = 5 - uploadedDocs.length;
+        const toUpload = files.slice(0, remaining);
+
+        if (files.length > remaining) {
+            addToast(`Chỉ upload thêm được ${remaining} tài liệu nữa.`, 'info');
+        }
+
+        setIsUploading(true);
+        try {
+            for (const file of toUpload) {
+                const url = await uploadForumImage(file, tempPostId);
+                setUploadedDocs(prev => [...prev, url]);
+            }
+        } catch {
+            addToast('Upload tài liệu thất bại, vui lòng thử lại.', 'error');
+        } finally {
+            setIsUploading(false);
+            e.target.value = '';
+        }
+    };
+
     const removeImage = (index: number) => {
         setUploadedImages(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const removeDoc = (index: number) => {
+        setUploadedDocs(prev => prev.filter((_, i) => i !== index));
     };
 
     const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -105,6 +135,7 @@ export default function CreatePostPage() {
                 AuthorEmail: currentUser.Email,
                 AuthorName: currentUser['Tên tài khoản'],
                 ImageURLs: uploadedImages.join(','),
+                DocURLs: uploadedDocs.join(','),
             };
 
             const result = await addForumPost(postData);
@@ -231,8 +262,43 @@ export default function CreatePostPage() {
 
                         {uploadedImages.length < 5 && (
                             <label className={`relative flex items-center justify-center gap-3 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isUploading ? 'border-blue-300 bg-blue-50 pointer-events-none' : 'border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'}`}>
-                                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" multiple onChange={handleImageSelect} disabled={isUploading} className="hidden" />
-                                {isUploading ? <><div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-300 border-t-blue-600" /><span className="text-sm font-medium text-blue-600">Đang tải lên...</span></> : <><Icon name="upload" className="w-5 h-5 text-gray-400" /><span className="text-sm font-medium text-gray-500">Thêm ảnh hoặc tài liệu</span><span className="text-xs text-gray-400">PDF, Word, Excel, Ảnh...</span></>}
+                                <input type="file" accept="image/*" multiple onChange={handleImageSelect} disabled={isUploading} className="hidden" />
+                                {isUploading ? <><div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-300 border-t-blue-600" /><span className="text-sm font-medium text-blue-600">Đang tải lên...</span></> : <><Icon name="image" className="w-5 h-5 text-gray-400" /><span className="text-sm font-medium text-gray-500">Thêm ảnh minh họa</span><span className="text-xs text-gray-400">JPG, PNG, GIF...</span></>}
+                            </label>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">
+                            Tài liệu đính kèm
+                            <span className="ml-2 font-normal text-gray-400">({uploadedDocs.length}/5)</span>
+                        </label>
+
+                        <div className="space-y-2 mb-3">
+                            {uploadedDocs.map((url, index) => (
+                                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-gray-100 text-blue-500 shrink-0">
+                                            <FileText className="w-5 h-5" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-medium text-gray-700 truncate">
+                                                {new URLSearchParams(url.split('#')[1]).get('name') || 'Tài liệu'}
+                                            </p>
+                                            <p className="text-xs text-gray-400">Đã tải lên</p>
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={() => removeDoc(index)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                        <Icon name="trash" className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {uploadedDocs.length < 5 && (
+                            <label className={`relative flex items-center justify-center gap-3 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isUploading ? 'border-blue-300 bg-blue-50 pointer-events-none' : 'border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'}`}>
+                                <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" multiple onChange={handleDocSelect} disabled={isUploading} className="hidden" />
+                                {isUploading ? <><div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-300 border-t-blue-600" /><span className="text-sm font-medium text-blue-600">Đang tải lên...</span></> : <><Icon name="upload" className="w-5 h-5 text-gray-400" /><span className="text-sm font-medium text-gray-500">Tải lên tài liệu</span><span className="text-xs text-gray-400">PDF, Word, Excel, ZIP...</span></>}
                             </label>
                         )}
                     </div>

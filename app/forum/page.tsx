@@ -443,7 +443,11 @@ export default function ForumPage() {
                                                             {/* Ảnh tách ra khỏi Link để tránh click nhầm */}
                                                             {post.ImageURLs && post.ImageURLs.trim() && (() => {
                                                                 // Chỉ lấy ảnh để hiển thị preview ngoài feed
-                                                                const imgs = post.ImageURLs.split(',').filter(u => !u.includes('#') || u.includes('mime=image')).filter(Boolean);
+                                                                const imgs = post.ImageURLs.split(',').filter(u => {
+                                                                    if (!u.includes('#')) return true;
+                                                                    const params = new URLSearchParams(u.split('#')[1]);
+                                                                    return params.get('mime')?.startsWith('image/');
+                                                                }).filter(Boolean);
                                                                 if (imgs.length === 0) return null;
                                                                 
                                                                 return (

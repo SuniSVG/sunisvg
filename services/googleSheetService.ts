@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx-TKgzW7jZds9LHBrNMUmOhwR6EqoFYcDKV6jh7qBBMxOYm2A4nhb8Bv8XzOMPFvU/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzkX1Cvfli2oht62aFKeLuMjvrLVWbrwB6CLbPOp_ekjqjzcwQEUDBh9LhAOGq22I/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -62,7 +62,7 @@ async function getLocalCache<T>(key: string): Promise<CacheEntry<T> | null> {
 const pendingRequests = new Map<string, Promise<any>>();
 
 // --- CORE REQUEST ---
-const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeout = 15000): Promise<any> => {
+const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeout = 60000): Promise<any> => {
   const key = JSON.stringify(payload);
   if (pendingRequests.has(key)) return pendingRequests.get(key)!;
 
@@ -1177,7 +1177,13 @@ export async function uploadForumImage(
             postId: tempPostId,
         });
 
-        if (result.status === 'success') resolve(result.url);
+        if (result.status === 'success') {
+            // Quan trọng: Đính kèm metadata vào URL để frontend phân biệt ảnh/tài liệu
+            const meta = new URLSearchParams();
+            meta.set('mime', file.type);
+            meta.set('name', file.name);
+            resolve(`${result.url}#${meta.toString()}`);
+        }
         else reject(new Error(result.message));
       } catch (err) {
         reject(err);
