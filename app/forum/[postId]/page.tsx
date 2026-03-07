@@ -192,14 +192,18 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
         if ((!newComment.trim() && commentImages.length === 0) || !currentUser || !post) return;
 
         setIsSubmitting(true);
-        const commentData = {
-            PostID: post.ID,
-            ParentID: 'root',
-            Content: newComment,
-            AuthorEmail: currentUser.Email,
-            AuthorName: currentUser['Tên tài khoản'],
-            ImageURLs: commentImages.join(','),
-        };
+const commentData = {
+    PostID: post.ID,
+    ParentID: 'root',
+    Content: newComment,
+    AuthorEmail: currentUser.Email,
+    AuthorName: currentUser['Tên tài khoản'],
+    ImageURLs: commentImages.join(','),
+};
+
+console.log('💬 commentImages khi submit:', commentImages); // ← thêm dòng này
+console.log('💬 commentData:', commentData);
+        
         
         const result = await addForumComment(commentData);
         if (result.success) {
@@ -354,7 +358,6 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                     placeholder="Viết bình luận của bạn..."
                                     className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y font-medium"
                                     rows={3}
-                                    required
                                 />
                                 
                                 {/* Thanh công cụ dưới textarea */}
@@ -455,29 +458,29 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                             <div className="text-gray-700 whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>
                                             
                                             {/* Hiển thị ảnh trong comment */}
-                                            {(comment as any).ImageURLs && (comment as any).ImageURLs.trim() && (() => {
-                                                const imgs = (comment as any).ImageURLs.split(',').filter(Boolean);
-                                                return (
-                                                    <div className={`mt-2 grid gap-1 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                                                        {imgs.map((url: string, i: number) => (
-                                                            <button
-                                                                key={i}
-                                                                type="button"
-                                                                onClick={() => setLightbox({ urls: imgs, index: i })}
-                                                                className={`relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in ${imgs.length === 1 ? 'h-40' : 'h-24'}`}
-                                                            >
-                                                                <Image
-                                                                    src={convertGoogleDriveUrl(url.trim())}
-                                                                    alt=""
-                                                                    fill
-                                                                    className="object-cover"
-                                                                    referrerPolicy="no-referrer"
-                                                                />
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                );
-                                            })()}
+{comment.ImageURLs && comment.ImageURLs.trim() && (() => {
+    const imgs = comment.ImageURLs!.split(',').filter(Boolean);
+    return (
+        <div className={`mt-2 grid gap-1 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {imgs.map((url, i) => (
+                <button
+                    key={i}
+                    type="button"
+                    onClick={() => setLightbox({ urls: imgs, index: i })}
+                    className={`relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in ${imgs.length === 1 ? 'h-40' : 'h-24'}`}
+                >
+                    <Image
+                        src={convertGoogleDriveUrl(url.trim())}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        referrerPolicy="no-referrer"
+                    />
+                </button>
+            ))}
+        </div>
+    );
+})()}
                                         </div>
                                     </div>
                                 );

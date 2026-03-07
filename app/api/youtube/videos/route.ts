@@ -53,8 +53,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { channelIds } = body as { channelIds: string[] };
 
-    console.log("[YouTube Route] channelIds nhận được:", channelIds);
-
     if (!channelIds?.length) {
       return NextResponse.json({ channels: [], videos: [] });
     }
@@ -63,12 +61,10 @@ export async function POST(req: NextRequest) {
     const cacheKey = [...channelIds].sort().join(",");
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.fetchedAt < TTL) {
-      console.log("[YouTube Route] Cache hit");
       return NextResponse.json({ channels: cached.channels, videos: cached.videos, fromCache: true });
     }
 
     // 3. Gọi YouTube
-    console.log("[YouTube Route] Gọi YouTube API...");
     const [channels, ...videoResults] = await Promise.all([
       fetchChannelInfos(channelIds),
       ...channelIds.map(fetchVideosForChannel),
@@ -86,7 +82,6 @@ export async function POST(req: NextRequest) {
       }))
       .filter((v) => v.id);
 
-    console.log(`[YouTube Route] Thành công: ${channels.length} kênh, ${videos.length} video`);
     cache.set(cacheKey, { channels, videos, fetchedAt: Date.now() });
 
     return NextResponse.json({ channels, videos, fromCache: false });

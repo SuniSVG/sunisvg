@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwBDHYCUejd6qOOfYFBq_K3u51B_6JK0wWyoDlqtHw6RIdt6leEK4tEUgPl-bdMacd5/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUXo2vSbS7gAl1dlw1yYWqSZ8hv_0rBxmnRQuozgLMLIfeYa4IScbdTCrKwKJDocU_/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -81,8 +81,6 @@ const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeo
       clearTimeout(id);
 
       const text = await response.text();
-      console.log('GAS raw response:', text);
-      console.log('GAS response status:', response.status);
       if (!text) throw new Error('Empty response');
 
       let result;
@@ -797,7 +795,6 @@ export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
 export const fetchCourses = async (): Promise<Course[]> => {
     try {
         const rawCourses = await fetchDataFromAppsScript<any>('Courses');
-        console.log('Raw Courses Data:', rawCourses); // Debugging log
         
         if (!Array.isArray(rawCourses)) {
             console.error('fetchCourses: Expected array but got:', typeof rawCourses);
