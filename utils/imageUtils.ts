@@ -1,22 +1,32 @@
 /**
  * Converts a Google Drive sharing URL to a direct image URL.
- * Example: https://drive.google.com/file/d/FILE_ID/view?usp=sharing -> https://drive.google.com/uc?export=view&id=FILE_ID
+ * Uses lh3.googleusercontent.com which bypasses CORS/403 issues.
  */
 export function convertGoogleDriveUrl(url: string): string {
   if (!url) return '';
-  
-  // Check if it's already a direct link or not a drive link
-  if (url.includes('drive.google.com/uc?export=view')) {
+
+  // Already converted to lh3 format — return as-is
+  if (url.includes('lh3.googleusercontent.com')) {
     return url;
   }
 
-  // Extract file ID from standard sharing URL
-  const match = url.match(/\/file\/d\/([^\/]+)/);
-  if (match && match[1]) {
-    const fileId = match[1];
-    return `https://drive.google.com/uc?export=view&id=${fileId}`;
+  // Format: /file/d/FILE_ID/
+  const fileMatch = url.match(/\/file\/d\/([^\/\?]+)/);
+  if (fileMatch?.[1]) {
+    return `https://lh3.googleusercontent.com/d/${fileMatch[1]}`;
   }
 
-  // Fallback for other formats or return original if no match
+  // Format: uc?export=view&id=FILE_ID  hoặc  uc?id=FILE_ID
+  const ucMatch = url.match(/[?&]id=([^&]+)/);
+  if (ucMatch?.[1]) {
+    return `https://lh3.googleusercontent.com/d/${ucMatch[1]}`;
+  }
+
+  // Format: /open?id=FILE_ID
+  const openMatch = url.match(/\/open\?id=([^&]+)/);
+  if (openMatch?.[1]) {
+    return `https://lh3.googleusercontent.com/d/${openMatch[1]}`;
+  }
+
   return url;
 }

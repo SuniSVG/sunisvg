@@ -10,9 +10,10 @@ import { fetchCourses, fetchPurchasedCategories, fetchForumPosts, fetchForumComm
 import { Course, ForumPost, ForumComment, Account } from '@/types';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { parseVNDateToDate, timeAgo } from '@/utils/dateUtils';
-import { ForumPostModal } from '@/components/ForumPostModal';
+import { ForumPostModal } from './ForumPostModal';
 import { useToast } from '@/contexts/ToastContext';
 import { AnimatePresence } from 'motion/react';
+import { FileText, Download } from 'lucide-react';
 
 const parseForumDate = (dateStr: string | undefined): Date => {
     if (!dateStr) return new Date();
@@ -37,6 +38,51 @@ const parseForumDate = (dateStr: string | undefined): Date => {
 
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? new Date() : d;
+};
+
+const parseAttachments = (urlsStr: string | undefined) => {
+    if (!urlsStr || !urlsStr.trim()) return { images: [], files: [] };
+    
+    const rawUrls = urlsStr.split(',').filter(Boolean);
+    const images: string[] = [];
+    const files: { url: string; name: string; mime: string }[] = [];
+
+    rawUrls.forEach(url => {
+        let cleanUrl = url.trim();
+        let mime = '';
+        let name = 'File đính kèm';
+
+        if (url.includes('#')) {
+            const [u, hash] = url.split('#');
+            cleanUrl = u.trim();
+            const params = new URLSearchParams(hash);
+            mime = params.get('mime') || '';
+            name = params.get('name') || 'File đính kèm';
+        }
+
+        if (mime.startsWith('image/') || (!mime && !url.includes('#'))) {
+            images.push(url);
+        } else {
+            files.push({ url: cleanUrl, name, mime });
+        }
+    });
+
+    return { images, files };
+};
+
+const FileAttachmentList = ({ files }: { files: { url: string; name: string; mime: string }[] }) => {
+    if (files.length === 0) return null;
+    return (
+        <div className="flex flex-col gap-1.5 mt-2">
+            {files.map((f, i) => (
+                <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2 bg-gray-100/50 border border-gray-200/60 rounded-lg hover:bg-emerald-50 hover:border-emerald-200 transition-colors group">
+                    <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center shadow-sm text-emerald-500 border border-gray-100"><FileText className="w-4 h-4" /></div>
+                    <div className="flex-1 min-w-0"><p className="text-xs font-medium text-gray-600 truncate group-hover:text-emerald-700">{f.name}</p><p className="text-[9px] text-gray-400 uppercase">{f.mime.split('/')[1] || 'FILE'}</p></div>
+                    <Download className="w-3.5 h-3.5 text-gray-400 group-hover:text-emerald-500" />
+                </a>
+            ))}
+        </div>
+    );
 };
 
 // ── AnimatedDigit: slot-machine style digit roller ──
@@ -1382,43 +1428,40 @@ export function RightSidebar() {
                   onClick={() => setSelectedPost(post)}
                   className="post-item group"
                 >
-                  <Link
-                    href={profileLink}
-                    onClick={(e) => e.stopPropagation()}
-                    className="post-avatar"
-                    style={{ background: !avatarUrl ? `linear-gradient(135deg, var(--a1), var(--a2))` : 'transparent' }}
-                    ref={!avatarUrl ? el => {
-                      if (el) {
-                        const colors = [
-                          ['#10b981', '#059669'],
-                          ['#f97316', '#ea580c'],
-                          ['#34d399', '#10b981'],
-                          ['#fbbf24', '#f97316'],
-                          ['#6ee7b7', '#34d399'],
-                        ];
-                        const [a1, a2] = colors[idx % colors.length];
-                        el.style.setProperty('--a1', a1);
-                        el.style.setProperty('--a2', a2);
-                      }
-                    } : null}
-                  >
-                    {avatarUrl ? (
-                      <div className="relative w-full h-full overflow-hidden rounded-[10px]">
-                        <Image
-                          src={convertGoogleDriveUrl(avatarUrl)}
-                          alt={post.AuthorName}
-                          fill
-                          className="object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                    ) : (
-                      post.AuthorName.charAt(0).toUpperCase()
-                    )}
+                  <Link href={profileLink} onClick={(e) => e.stopPropagation()} className="post-avatar self-start" style={{ background: !avatarUrl ? `linear-gradient(135deg, var(--a1), var(--a2))` : 'transparent' }} ref={!avatarUrl ? el => { if (el) { const colors = [ ['#10b981', '#059669'], ['#f97316', '#ea580c'], ['#34d399', '#10b981'], ['#fbbf24', '#f97316'], ['#6ee7b7', '#34d399'], ]; const [a1, a2] = colors[idx % colors.length]; el.style.setProperty('--a1', a1); el.style.setProperty('--a2', a2); } } : null}>
+                    {avatarUrl ? (<div className="relative w-full h-full overflow-hidden rounded-[10px]"><Image src={convertGoogleDriveUrl(avatarUrl)} alt={post.AuthorName} fill className="object-cover" referrerPolicy="no-referrer" /></div>) : (post.AuthorName.charAt(0).toUpperCase())}
                   </Link>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 flex flex-col">
                     <p className="post-title">{post.Title}</p>
-                    <div className="post-meta">
+                    
+                    {post.Content && (
+                        <p className="text-xs text-gray-600 leading-relaxed mt-1 mb-2 whitespace-pre-wrap break-words line-clamp-5">
+                            {post.Content}
+                        </p>
+                    )}
+
+                    {(() => {
+                        const { images, files } = parseAttachments(post.ImageURLs);
+                        const { files: docFiles } = parseAttachments(post.DocURLs);
+                        const allFiles = [...files, ...docFiles];
+
+                        return (
+                            <>
+                                {images.length > 0 && (
+                                    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                                        {images.map((url, i) => (
+                                            <div key={i} className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+                                                <Image src={convertGoogleDriveUrl(url.split('#')[0])} alt="" fill className="object-contain" referrerPolicy="no-referrer" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <FileAttachmentList files={allFiles} />
+                            </>
+                        );
+                    })()}
+
+                    <div className="post-meta mt-2">
                       <Link 
                         href={profileLink}
                         onClick={(e) => e.stopPropagation()}

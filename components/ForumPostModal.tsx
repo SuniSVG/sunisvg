@@ -1,3 +1,4 @@
+// e:\NEW\components\ForumPostModal.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -10,6 +11,54 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
+import { FileText, Download } from 'lucide-react';
+
+// Hàm parseAttachments và FileAttachmentList được định nghĩa lại ở đây
+// để component này có thể hoạt động độc lập.
+const parseAttachments = (urlsStr: string | undefined) => {
+  if (!urlsStr || !urlsStr.trim()) return { images: [], files: [] };
+  
+  const rawUrls = urlsStr.split(',').filter(Boolean);
+  const images: string[] = [];
+  const files: { url: string; name: string; mime: string }[] = [];
+
+  rawUrls.forEach(url => {
+      let cleanUrl = url.trim();
+      let mime = '';
+      let name = 'File đính kèm';
+
+      if (url.includes('#')) {
+          const [u, hash] = url.split('#');
+          cleanUrl = u.trim();
+          const params = new URLSearchParams(hash);
+          mime = params.get('mime') || '';
+          name = params.get('name') || 'File đính kèm';
+      }
+
+      if (mime.startsWith('image/') || (!mime && !url.includes('#'))) {
+          images.push(url);
+      } else {
+          files.push({ url: cleanUrl, name, mime });
+      }
+  });
+
+  return { images, files };
+};
+
+const FileAttachmentList = ({ files }: { files: { url: string; name: string; mime: string }[] }) => {
+  if (files.length === 0) return null;
+  return (
+      <div className="flex flex-col gap-2 mt-4">
+          {files.map((f, i) => (
+              <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-200 transition-colors group">
+                  <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm text-blue-500 border border-gray-100"><FileText className="w-5 h-5" /></div>
+                  <div className="flex-1 min-w-0"><p className="text-sm font-medium text-gray-700 truncate group-hover:text-blue-700">{f.name}</p><p className="text-xs text-gray-400 uppercase">{f.mime.split('/')[1] || 'FILE'}</p></div>
+                  <Download className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+              </a>
+          ))}
+      </div>
+  );
+};
 
 interface ForumPostModalProps {
   post: ForumPost;
@@ -25,13 +74,15 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Tải bình luận và tài khoản khi component được mở
   useEffect(() => {
     const loadComments = async () => {
       try {
         const [allComments, allAccounts] = await Promise.all([
-          fetchForumComments(true),
+          fetchForumComments(true), // true để bỏ qua cache, luôn lấy mới nhất
           fetchAccounts()
         ]);
+        // Lọc ra các comment thuộc về bài post này
         const filtered = allComments.filter(c => c.PostID === post.ID);
         setComments(filtered);
         setAccounts(allAccounts);
@@ -44,6 +95,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
     loadComments();
   }, [post.ID]);
 
+  // Hàm gửi bình luận mới
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
@@ -64,7 +116,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
 
       if (result.success) {
         setNewComment('');
-        // Reload comments
+        // Tải lại danh sách bình luận để cập nhật
         const allComments = await fetchForumComments(true);
         setComments(allComments.filter(c => c.PostID === post.ID));
         addToast('Đã gửi bình luận', 'success');
@@ -93,7 +145,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
         className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
       >
-        {/* Header */}
+        {/* Header của Modal */}
         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <Link href={profileLink} onClick={(e) => { if(!postAuthorAccount?.Email) e.preventDefault(); else onClose(); }} className="group flex items-center gap-3">
@@ -124,12 +176,41 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
           </button>
         </div>
 
-        {/* Content */}
+        {/* Nội dung chính có thể cuộn */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {/* Nội dung text của bài post */}
           <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
             {post.Content}
           </div>
 
+          {/* Hiển thị ảnh và file của bài post */}
+          {(() => {
+            const { images, files } = parseAttachments(post.ImageURLs);
+            const { files: docFiles } = parseAttachments(post.DocURLs);
+            const allFiles = [...files, ...docFiles];
+
+            return (
+              <div className="mt-4">
+                {images.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-4">
+                    {images.map((url, i) => (
+                      <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+                        <img 
+                          src={convertGoogleDriveUrl(url.split('#')[0])} 
+                          alt="" 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <FileAttachmentList files={allFiles} />
+              </div>
+            );
+          })()}
+
+          {/* Phần thảo luận */}
           <div className="pt-8 border-t border-gray-100">
             <h4 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
               <Icon name="message-circle" className="w-5 h-5 text-blue-500" />
@@ -143,6 +224,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
             ) : (
               <div className="space-y-6">
                 {comments.length > 0 ? (
+                  // Lặp qua và hiển thị từng bình luận
                   comments.map((comment, idx) => {
                     const commenterAccount = accounts.find(acc => 
                         (comment.AuthorEmail && acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase()) || 
@@ -150,6 +232,9 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                     );
                     const commenterProfileLink = commenterAccount?.Email ? `/profile/${commenterAccount.Email}` : '#';
                     
+                    // Parse ảnh/file của bình luận
+                    const { images: cImages, files: cFiles } = parseAttachments((comment as any).ImageURLs);
+
                     return (
                       <div key={idx} className="flex gap-4">
                         <Link href={commenterProfileLink} onClick={(e) => { if(!commenterAccount?.Email) e.preventDefault(); else onClose(); }} className="flex-shrink-0 group">
@@ -172,7 +257,24 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                             <Link href={commenterProfileLink} onClick={(e) => { if(!commenterAccount?.Email) e.preventDefault(); else onClose(); }} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition-colors">{comment.AuthorName}</Link>
                             <span className="text-[10px] text-gray-400">{comment.Timestamp || 'Vừa xong'}</span>
                           </div>
-                          <p className="text-sm text-gray-700 leading-relaxed">{comment.Content}</p>
+                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{comment.Content}</p>
+                          
+                          {/* Hiển thị ảnh/file của bình luận */}
+                          {cImages.length > 0 && (
+                            <div className="mt-3 grid grid-cols-3 gap-2">
+                              {cImages.map((url, i) => (
+                                <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 bg-white">
+                                  <img 
+                                    src={convertGoogleDriveUrl(url.split('#')[0])} 
+                                    alt="" 
+                                    className="w-full h-full object-cover" 
+                                    referrerPolicy="no-referrer" 
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <FileAttachmentList files={cFiles} />
                         </div>
                       </div>
                     );
@@ -185,7 +287,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
           </div>
         </div>
 
-        {/* Footer / Input */}
+        {/* Footer: Khung nhập bình luận */}
         <div className="p-6 border-t border-gray-100 bg-gray-50">
           <form onSubmit={handleSubmitComment} className="flex gap-3">
             <input 
