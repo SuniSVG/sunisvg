@@ -22,7 +22,8 @@ import {
     ChevronRight, 
     Camera,
     XCircle,
-    ArrowRight
+    ArrowRight,
+    History
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { DepositModal } from './DepositModal';
@@ -330,6 +331,7 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                         { href: '/vouchers', icon: Ticket, label: 'Kho Voucher' },
                         { href: '/settings', icon: Settings, label: 'Cài đặt tài khoản' },
                         { href: '/support', icon: MessageCircle, label: 'Trung tâm hỗ trợ' },
+                        { href: '/changelog', icon: History, label: 'Nhật ký thay đổi' },
                         { href: '/policy', icon: ShieldCheck, label: 'Chính sách & Điều khoản' },
                     ].map((item, idx) => (
                         <Link key={idx} href={item.href} className="flex items-center gap-3 p-3 hover:bg-green-50 rounded-xl transition-colors group">
