@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { timeAgo } from '@/utils/dateUtils';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
+import { Reply } from 'lucide-react';
 import 'katex/dist/katex.min.css';
 
 const InlineMath = dynamic(() => import('react-katex').then(mod => mod.InlineMath), { ssr: false });
@@ -72,6 +73,219 @@ const parseForumDate = (dateStr: string | undefined): Date => {
     return isNaN(d.getTime()) ? new Date(0) : d;
 };
 
+// --- Sub-components ---
+
+interface CommentInputProps {
+    postId: string;
+    parentId: string;
+    onSuccess: (newComment: ForumComment) => void;
+    onCancel?: () => void;
+    placeholder?: string;
+    autoFocus?: boolean;
+}
+
+function CommentInput({ postId, parentId, onSuccess, onCancel, placeholder, autoFocus }: CommentInputProps) {
+    const [content, setContent] = useState('');
+    const [images, setImages] = useState<string[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const tempId = useMemo(() => crypto.randomUUID(), []);
+    
+    const { currentUser } = useAuth();
+    const { addToast } = useToast();
+
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+        const remaining = 3 - images.length;
+        const toUpload = files.slice(0, remaining);
+        setIsUploading(true);
+        try {
+            for (const file of toUpload) {
+                const url = await uploadForumImage(file, tempId);
+                setImages(prev => [...prev, url]);
+            }
+        } catch {
+            addToast('Upload ảnh thất bại.', 'error');
+        } finally {
+            setIsUploading(false);
+            e.target.value = '';
+        }
+    };
+
+    const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const items = Array.from(e.clipboardData.items);
+        const imageItems = items.filter(item => item.type.startsWith('image/'));
+        if (imageItems.length === 0) return;
+        e.preventDefault();
+        const remaining = 3 - images.length;
+        if (remaining <= 0) {
+            addToast('Đã đạt giới hạn ảnh.', 'info');
+            return;
+        }
+        setIsUploading(true);
+        try {
+            for (const item of imageItems.slice(0, remaining)) {
+                const file = item.getAsFile();
+                if (!file) continue;
+                const url = await uploadForumImage(file, tempId);
+                setImages(prev => [...prev, url]);
+            }
+        } catch {
+            addToast('Upload ảnh thất bại.', 'error');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if ((!content.trim() && images.length === 0) || !currentUser) return;
+
+        setIsSubmitting(true);
+        const commentData = {
+            PostID: postId,
+            ParentID: parentId,
+            Content: content,
+            AuthorEmail: currentUser.Email,
+            AuthorName: currentUser['Tên tài khoản'],
+            ImageURLs: images.join(','),
+        };
+
+        const result = await addForumComment(commentData);
+        if (result.success) {
+            const optimisticComment = {
+                ...commentData,
+                ID: `temp-${Date.now()}`,
+                Timestamp: new Date().toLocaleString('vi-VN', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                }),
+                ImageURLs: images.join(','),
+            } as unknown as ForumComment;
+            onSuccess(optimisticComment);
+            setContent('');
+            setImages([]);
+            if (onCancel) onCancel();
+        } else {
+            addToast(result.error || 'Không thể đăng bình luận.', 'error');
+        }
+        setIsSubmitting(false);
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
+            <textarea
+                value={content}
+                onChange={e => setContent(e.target.value)}
+                onPaste={handlePaste}
+                placeholder={placeholder || "Viết bình luận..."}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y text-sm min-h-[80px]"
+                autoFocus={autoFocus}
+            />
+            
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 flex-wrap">
+                    {images.map((url, i) => (
+                        <div key={i} className="relative w-10 h-10 rounded-lg overflow-hidden border border-gray-200 group">
+                            <Image src={convertGoogleDriveUrl(url)} alt="" fill className="object-cover" referrerPolicy="no-referrer" />
+                            <button type="button" onClick={() => setImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                <Icon name="x" className="w-3 h-3 text-white" />
+                            </button>
+                        </div>
+                    ))}
+                    {images.length < 3 && (
+                        <label className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${isUploading ? 'bg-blue-50 text-blue-400 pointer-events-none' : 'bg-white border border-gray-200 hover:bg-gray-100 text-gray-600'}`}>
+                            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={handleImageSelect} disabled={isUploading} className="hidden" />
+                            {isUploading ? <div className="w-3 h-3 rounded-full border-2 border-blue-300 border-t-blue-500 animate-spin" /> : <Icon name="image" className="w-3.5 h-3.5" />}
+                        </label>
+                    )}
+                </div>
+
+                <div className="flex gap-2">
+                    {onCancel && (
+                        <button type="button" onClick={onCancel} className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-200 rounded-lg transition-colors">
+                            Hủy
+                        </button>
+                    )}
+                    <button type="submit" disabled={isSubmitting || isUploading || (!content.trim() && images.length === 0)} className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors flex items-center gap-1.5">
+                        {isSubmitting ? <div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : <Icon name="send" className="w-3 h-3" />}
+                        Gửi
+                    </button>
+                </div>
+            </div>
+        </form>
+    );
+}
+
+function CommentItem({ comment, allComments, accounts, postId, onReplySuccess, setLightbox }: any) {
+    const [isReplying, setIsReplying] = useState(false);
+    const { currentUser } = useAuth();
+    const { addToast } = useToast();
+
+    const replies = allComments.filter((c: any) => c.ParentID === comment.ID).sort((a: any, b: any) => {
+        return parseForumDate(a.Timestamp).getTime() - parseForumDate(b.Timestamp).getTime();
+    });
+
+    const authorAccount = accounts.find((acc: any) => 
+        (comment.AuthorEmail && acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase()) || 
+        acc['Tên tài khoản'] === comment.AuthorName
+    );
+    const displayName = authorAccount ? authorAccount['Tên tài khoản'] : comment.AuthorName;
+    const avatarUrl = authorAccount?.AvatarURL;
+    const profileLink = authorAccount?.Email ? `/profile/${authorAccount.Email}` : '#';
+
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+                <Link href={profileLink} className="flex-shrink-0 group" onClick={e => !authorAccount?.Email && e.preventDefault()}>
+                    <div className="w-8 h-8 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-bold border border-gray-200 overflow-hidden relative">
+                        {avatarUrl ? <Image src={convertGoogleDriveUrl(avatarUrl)} alt={displayName} fill className="object-cover" referrerPolicy="no-referrer" /> : displayName.charAt(0)}
+                    </div>
+                </Link>
+                <div className="flex-grow">
+                    <div className="bg-gray-50 p-3 rounded-2xl rounded-tl-none border border-gray-100">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <Link href={profileLink} className="font-bold text-sm text-gray-900 hover:text-blue-600 transition-colors" onClick={e => !authorAccount?.Email && e.preventDefault()}>{displayName}</Link>
+                            <span className="text-xs font-bold text-gray-400 ml-auto">{timeAgo(parseForumDate(comment.Timestamp).toISOString())}</span>
+                        </div>
+                        <div className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>
+                        {(comment as any).ImageURLs && (comment as any).ImageURLs.trim() && (() => {
+                            const imgs = ((comment as any).ImageURLs as string).split(',').filter(Boolean);
+                            return (
+                                <div className={`mt-2 grid gap-1 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                    {imgs.map((url, i) => (
+                                        <button key={i} type="button" onClick={() => setLightbox({ urls: imgs, index: i })} className={`relative overflow-hidden rounded-lg border border-gray-100 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in ${imgs.length === 1 ? 'h-32' : 'h-20'}`}>
+                                            <Image src={convertGoogleDriveUrl(url.trim())} alt="" fill className="object-cover" referrerPolicy="no-referrer" />
+                                        </button>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 ml-2">
+                        <button onClick={() => currentUser ? setIsReplying(!isReplying) : addToast('Vui lòng đăng nhập để trả lời.', 'info')} className="text-xs font-bold text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-colors">
+                            <Reply className="w-3 h-3" /> Trả lời
+                        </button>
+                    </div>
+                    {isReplying && (
+                        <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <CommentInput postId={postId} parentId={comment.ID} onSuccess={(newC) => { onReplySuccess(newC); setIsReplying(false); }} onCancel={() => setIsReplying(false)} autoFocus />
+                        </div>
+                    )}
+                </div>
+            </div>
+            {replies.length > 0 && (
+                <div className="pl-11 flex flex-col gap-3 relative before:absolute before:left-4 before:top-0 before:bottom-4 before:w-0.5 before:bg-gray-100">
+                    {replies.map((reply: any) => (
+                        <CommentItem key={reply.ID} comment={reply} allComments={allComments} accounts={accounts} postId={postId} onReplySuccess={onReplySuccess} setLightbox={setLightbox} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function PostDetailPage({ params }: { params: Promise<{ postId: string }> }) {
     const resolvedParams = use(params);
     const postId = resolvedParams.postId;
@@ -80,17 +294,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [newComment, setNewComment] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
     
-    // Comment image upload state
-    const [commentImages, setCommentImages] = useState<string[]>([]);
-    const [isUploadingImage, setIsUploadingImage] = useState(false);
-    const tempCommentId = useMemo(() => crypto.randomUUID(), []);
-    
     const { currentUser } = useAuth();
-    const { addToast } = useToast();
     const router = useRouter();
 
     useEffect(() => {
@@ -137,97 +343,6 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
         loadData();
     }, [postId]);
 
-    const handleCommentImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        if (!files.length) return;
-
-        const remaining = 3 - commentImages.length; // Comment giới hạn 3 ảnh
-        const toUpload = files.slice(0, remaining);
-
-        setIsUploadingImage(true);
-        try {
-            for (const file of toUpload) {
-                const url = await uploadForumImage(file, tempCommentId);
-                setCommentImages(prev => [...prev, url]);
-            }
-        } catch {
-            addToast('Upload ảnh thất bại.', 'error');
-        } finally {
-            setIsUploadingImage(false);
-            e.target.value = '';
-        }
-    };
-
-    const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        const items = Array.from(e.clipboardData.items);
-        const imageItems = items.filter(item => item.type.startsWith('image/'));
-        
-        if (imageItems.length === 0) return;
-        
-        e.preventDefault();
-        
-        const remaining = 3 - commentImages.length;
-        if (remaining <= 0) {
-            addToast('Đã đạt giới hạn ảnh.', 'info');
-            return;
-        }
-
-        setIsUploadingImage(true);
-        try {
-            for (const item of imageItems.slice(0, remaining)) {
-                const file = item.getAsFile();
-                if (!file) continue;
-                const url = await uploadForumImage(file, tempCommentId);
-                setCommentImages(prev => [...prev, url]);
-            }
-        } catch {
-            addToast('Upload ảnh thất bại.', 'error');
-        } finally {
-            setIsUploadingImage(false);
-        }
-    };
-
-    const handleCommentSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if ((!newComment.trim() && commentImages.length === 0) || !currentUser || !post) return;
-
-        setIsSubmitting(true);
-const commentData = {
-    PostID: post.ID,
-    ParentID: 'root',
-    Content: newComment,
-    AuthorEmail: currentUser.Email,
-    AuthorName: currentUser['Tên tài khoản'],
-    ImageURLs: commentImages.join(','),
-};
-
-console.log('💬 commentImages khi submit:', commentImages); // ← thêm dòng này
-console.log('💬 commentData:', commentData);
-        
-        
-        const result = await addForumComment(commentData);
-        if (result.success) {
-            // Optimistically add comment to UI
-            const optimisticComment = {
-                ...commentData,
-                ID: `temp-${Date.now()}`,
-                Timestamp: new Date().toLocaleString('vi-VN', {
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit', second: '2-digit'
-                }),
-                ImageURLs: commentImages.join(','),
-            } as unknown as ForumComment;
-            setComments(prev => [...prev, optimisticComment]);
-            setNewComment('');
-            setCommentImages([]);
-            addToast('Bình luận của bạn đã được đăng.', 'success');
-        } else {
-            addToast(result.error || 'Không thể đăng bình luận.', 'error');
-        }
-        setIsSubmitting(false);
-    };
-
-
     if (isLoading) {
         return (
             <div className="flex justify-center items-center min-h-[calc(100vh-64px)] bg-gray-50">
@@ -250,10 +365,9 @@ console.log('💬 commentData:', commentData);
         );
     }
 
-    const sortedComments = [...comments].sort((a, b) => {
-        const timeA = parseForumDate(a.Timestamp).getTime();
-        const timeB = parseForumDate(b.Timestamp).getTime();
-        return timeB - timeA;
+    // Filter root comments (ParentID is empty, 'root', or 'null')
+    const rootComments = comments.filter(c => !c.ParentID || c.ParentID === 'root' || c.ParentID === 'null').sort((a, b) => {
+        return parseForumDate(b.Timestamp).getTime() - parseForumDate(a.Timestamp).getTime();
     });
 
     const postAuthorAccount = accounts.find(acc => 
@@ -332,159 +446,49 @@ console.log('💬 commentData:', commentData);
                 <section className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
                     <div className="flex items-center gap-3 mb-8 pb-4 border-b border-gray-100">
                         <Icon name="message-circle" className="w-6 h-6 text-gray-400" />
-                        <h2 className="text-2xl font-black text-gray-900">{sortedComments.length} Bình luận</h2>
+                        <h2 className="text-2xl font-black text-gray-900">{comments.length} Bình luận</h2>
                     </div>
                     
                     {currentUser ? (
-                        <form onSubmit={handleCommentSubmit} className="mb-10 flex items-start gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                        <div className="mb-10 flex items-start gap-4">
                             <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold flex-shrink-0 overflow-hidden relative">
-                                {currentUser.AvatarURL ? (
-                                    <Image
-                                        src={convertGoogleDriveUrl(currentUser.AvatarURL)}
-                                        alt={currentUser['Tên tài khoản']}
-                                        fill
-                                        className="object-cover"
-                                        referrerPolicy="no-referrer"
-                                    />
-                                ) : (
-                                    currentUser['Tên tài khoản'].charAt(0)
-                                )}
+                                {currentUser.AvatarURL ? <Image src={convertGoogleDriveUrl(currentUser.AvatarURL)} alt={currentUser['Tên tài khoản']} fill className="object-cover" referrerPolicy="no-referrer" /> : currentUser['Tên tài khoản'].charAt(0)}
                             </div>
-                            <div className="flex-grow flex flex-col gap-3">
-                                <textarea
-                                    value={newComment}
-                                    onChange={e => setNewComment(e.target.value)}
-                                    onPaste={handlePaste}
-                                    placeholder="Viết bình luận của bạn..."
-                                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y font-medium"
-                                    rows={3}
+                            <div className="flex-grow">
+                                <CommentInput 
+                                    postId={post.ID} 
+                                    parentId="root" 
+                                    onSuccess={(newC) => {
+                                        setComments(prev => [...prev, newC]);
+                                        addToast('Bình luận của bạn đã được đăng.', 'success');
+                                    }} 
                                 />
-                                
-                                {/* Thanh công cụ dưới textarea */}
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-                                    
-                                    {/* Nút upload ảnh + preview */}
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        {/* Preview thumbnails */}
-                                        {commentImages.map((url, i) => (
-                                            <div key={i} className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 group flex-shrink-0">
-                                                <Image
-                                                    src={convertGoogleDriveUrl(url)}
-                                                    alt=""
-                                                    fill
-                                                    className="object-cover"
-                                                    referrerPolicy="no-referrer"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setCommentImages(prev => prev.filter((_, idx) => idx !== i))}
-                                                    className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-                                                >
-                                                    <Icon name="x" className="w-3 h-3 text-white" />
-                                                </button>
-                                            </div>
-                                        ))}
-
-                                        {/* Nút chọn ảnh */}
-                                        {commentImages.length < 3 && (
-                                            <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${isUploadingImage ? 'bg-blue-50 text-blue-400 pointer-events-none' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
-                                                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={handleCommentImageSelect} disabled={isUploadingImage} className="hidden" />
-                                                {isUploadingImage ? <><div className="w-3.5 h-3.5 rounded-full border-2 border-blue-300 border-t-blue-500 animate-spin" />Đang tải...</> : <><Icon name="image" className="w-3.5 h-3.5" />Thêm ảnh {commentImages.length > 0 && `(${commentImages.length}/3)`}</>}
-                                            </label>
-                                        )}
-                                    </div>
-
-                                    {/* Nút gửi */}
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmitting || isUploadingImage || (!newComment.trim() && commentImages.length === 0)}
-                                        className="px-5 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 transition-colors flex items-center gap-2"
-                                    >
-                                        {isSubmitting ? (
-                                            <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                                        ) : (
-                                            <>
-                                                <Icon name="send" className="w-4 h-4" />
-                                                Gửi
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
                             </div>
-                        </form>
+                        </div>
                     ) : (
                         <div className="mb-10 p-6 bg-blue-50 border border-blue-100 rounded-2xl text-center flex flex-col items-center justify-center gap-3">
                             <Icon name="lock" className="w-8 h-8 text-blue-400" />
                             <p className="text-gray-600 font-medium">Bạn cần đăng nhập để tham gia bình luận.</p>
-                            <Link href="/login" prefetch={true} className="font-bold text-white bg-blue-600 px-6 py-2 rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
-                                Đăng nhập ngay
-                            </Link>
+                            <Link href="/login" prefetch={true} className="font-bold text-white bg-blue-600 px-6 py-2 rounded-xl hover:bg-blue-700 transition-colors shadow-sm">Đăng nhập ngay</Link>
                         </div>
                     )}
                     
                     <div className="space-y-8">
-                        {sortedComments.length > 0 ? (
-                            sortedComments.map(comment => {
-                                const commenterAccount = accounts.find(acc => 
-                                    (comment.AuthorEmail && acc.Email.toLowerCase() === comment.AuthorEmail.toLowerCase()) || 
-                                    acc['Tên tài khoản'] === comment.AuthorName
-                                );
-                                const displayName = commenterAccount ? commenterAccount['Tên tài khoản'] : comment.AuthorName;
-                                const commenterAvatar = commenterAccount?.AvatarURL;
-                                const commenterProfileLink = commenterAccount?.Email ? `/profile/${commenterAccount.Email}` : '#';
-                                
-                                return (
-                                    <div key={comment.ID} className="flex items-start gap-4">
-                                        <Link href={commenterProfileLink} className="flex-shrink-0 group" onClick={e => !commenterAccount?.Email && e.preventDefault()}>
-                                        <div className="w-10 h-10 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-bold border border-gray-200 overflow-hidden relative">
-                                            {commenterAvatar ? (
-                                                <Image
-                                                    src={convertGoogleDriveUrl(commenterAvatar)}
-                                                    alt={displayName}
-                                                    fill
-                                                    className="object-cover"
-                                                    referrerPolicy="no-referrer"
-                                                />
-                                            ) : (
-                                                displayName.charAt(0)
-                                            )}
-                                        </div>
-                                        </Link>
-                                        <div className="flex-grow bg-gray-50 p-4 rounded-2xl rounded-tl-none border border-gray-100">
-                                            <div className="flex items-center gap-2 flex-wrap mb-2">
-                                                <Link href={commenterProfileLink} className="font-bold text-gray-900 hover:text-blue-600 transition-colors" onClick={e => !commenterAccount?.Email && e.preventDefault()}>{displayName}</Link>
-                                                <span className="text-xs font-bold text-gray-400 ml-auto">{timeAgo(parseForumDate(comment.Timestamp).toISOString())}</span>
-                                            </div>
-                                            <div className="text-gray-700 whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>
-                                            
-                                            {/* Hiển thị ảnh trong comment */}
-{(comment as any).ImageURLs && (comment as any).ImageURLs.trim() && (() => {
-    const imgs = ((comment as any).ImageURLs as string).split(',').filter(Boolean);
-    return (
-        <div className={`mt-2 grid gap-1 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-            {imgs.map((url, i) => (
-                <button
-                    key={i}
-                    type="button"
-                    onClick={() => setLightbox({ urls: imgs, index: i })}
-                    className={`relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in ${imgs.length === 1 ? 'h-40' : 'h-24'}`}
-                >
-                    <Image
-                        src={convertGoogleDriveUrl(url.trim())}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        referrerPolicy="no-referrer"
-                    />
-                </button>
-            ))}
-        </div>
-    );
-})()}
-                                        </div>
-                                    </div>
-                                );
-                            })
+                        {rootComments.length > 0 ? (
+                            rootComments.map(comment => (
+                                <CommentItem 
+                                    key={comment.ID} 
+                                    comment={comment} 
+                                    allComments={comments} 
+                                    accounts={accounts} 
+                                    postId={post.ID} 
+                                    onReplySuccess={(newC: ForumComment) => {
+                                        setComments(prev => [...prev, newC]);
+                                        addToast('Đã gửi câu trả lời.', 'success');
+                                    }}
+                                    setLightbox={setLightbox}
+                                />
+                            ))
                         ) : (
                             <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-2xl">
                                 <Icon name="message-square" className="w-12 h-12 mx-auto text-gray-300 mb-3" />
