@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzJFqeFM2_w4E0UlzB5YBGJW7hwqePR5LnTm8g_BOwn5UPuLCTVw9gYBg4RnXEYYmce/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxr1-2UsW9SBH3DCX4HOfzbwAm4Lv7sG1ZPgM-_EbmAWkfw8ecaAxNmIUZ1WElQ5GK-/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -81,6 +81,8 @@ const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeo
       clearTimeout(id);
 
       const text = await response.text();
+      console.log('GAS raw response:', text);
+      console.log('GAS response status:', response.status);
       if (!text) throw new Error('Empty response');
 
       let result;
@@ -902,7 +904,7 @@ export const fetchBooks = async (): Promise<Book[]> => {
     }
 };
 export const addArticle = async (
-    articleData: Omit<ScientificArticle, 'ID' | 'SM_DOI' | 'SubmissionDate' | 'SubmitterEmail' | 'Status' | 'Feedback'>,
+    articleData: Omit<ScientificArticle, 'ID' | 'SM_DOI' | 'SubmissionDate' | 'SubmitterEmail' | 'Status' | 'Feedback'> & { fileInfo?: any },
     submitterEmail: string
 ): Promise<{ success: boolean; error?: string; newId?: string }> => {
     try {
@@ -913,10 +915,12 @@ export const addArticle = async (
         };
         const result = await postToAppsScript(payload);
         if (result.status === 'success') {
-            return { success: true, newId: result.newId };
+            return { success: true, newId: result.paperId };
         }
-        return { success: false, error: result.message || 'An unknown error occurred while adding the article.' };
+        console.error("addArticle failed:", result);
+        return { success: false, error: result.message || result.error || 'An unknown error occurred while adding the article.' };
     } catch (error: any) {
+        console.error("addArticle exception:", error);
         return { success: false, error: error.message };
     }
 };

@@ -112,9 +112,8 @@ export default function CoursesPage() {
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState('Tất cả');
-    const [paidPage, setPaidPage] = useState(1);
-    const [freePage, setFreePage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
+    const [sectionPages, setSectionPages] = useState<Record<string, number>>({});
+    const ITEMS_PER_PAGE = 3;
 
     const loadCourses = useCallback(async (force: boolean = false) => {
         setIsLoading(true);
@@ -139,6 +138,10 @@ export default function CoursesPage() {
         loadCourses();
     }, [loadCourses]);
 
+    useEffect(() => {
+        setSectionPages({});
+    }, [search, activeCategory]);
+
     const categories = useMemo(() =>
         ['Tất cả', ...Array.from(new Set(courses.map(c => c.Category).filter(Boolean)))],
         [courses]
@@ -154,26 +157,35 @@ export default function CoursesPage() {
         });
     }, [courses, search, activeCategory]);
 
-    useEffect(() => {
-        setPaidPage(1);
-        setFreePage(1);
-    }, [search, activeCategory]);
-
-    const { paidCourses, freeCourses } = useMemo(() => {
-        const paid: Course[] = [];
-        const free: Course[] = [];
-        filtered.forEach(c => {
-            if (c.Price > 0) paid.push(c);
-            else free.push(c);
+    const groupCoursesByFor = (list: Course[]) => {
+        const groups: Record<string, Course[]> = {};
+        list.forEach(c => {
+            const key = c.For ? c.For.trim() : 'Khác';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(c);
         });
-        return { paidCourses: paid, freeCourses: free };
-    }, [filtered]);
+        return groups;
+    };
 
-    const paginatedPaid = paidCourses.slice((paidPage - 1) * ITEMS_PER_PAGE, paidPage * ITEMS_PER_PAGE);
-    const paginatedFree = freeCourses.slice((freePage - 1) * ITEMS_PER_PAGE, freePage * ITEMS_PER_PAGE);
-    
-    const totalPaidPages = Math.ceil(paidCourses.length / ITEMS_PER_PAGE);
-    const totalFreePages = Math.ceil(freeCourses.length / ITEMS_PER_PAGE);
+    const { groups, sortedKeys } = useMemo(() => {
+        const g: Record<string, { paid: Course[], free: Course[] }> = {};
+        
+        filtered.forEach(c => {
+            const key = c.For ? c.For.trim() : 'Khác';
+            if (!g[key]) g[key] = { paid: [], free: [] };
+            
+            if (c.Price > 0) g[key].paid.push(c);
+            else g[key].free.push(c);
+        });
+
+        const keys = Object.keys(g).sort((a, b) => {
+            if (a === 'Khác') return 1;
+            if (b === 'Khác') return -1;
+            return a.localeCompare(b);
+        });
+
+        return { groups: g, sortedKeys: keys };
+    }, [filtered]);
 
     // Helper để lấy số lượng mua (theo Category hoặc ID)
 const getPurchaseCount = (course: Course) => {
@@ -188,16 +200,21 @@ const getPurchaseCount = (course: Course) => {
         || 0;
 };
 
-    const renderPagination = (currentPage: number, totalPages: number, setPage: (p: number) => void) => {
+    const getPage = (key: string) => sectionPages[key] || 1;
+
+    const renderPagination = (sectionKey: string, totalCount: number) => {
+        const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+        const currentPage = getPage(sectionKey);
+
         if (totalPages <= 1) return null;
         return (
             <div className="flex justify-center items-center gap-2 mt-8">
-                <button onClick={() => setPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                    <Icon name="chevron-left" className="w-5 h-5" />
+                <button onClick={() => setSectionPages(prev => ({ ...prev, [sectionKey]: Math.max(1, currentPage - 1) }))} disabled={currentPage === 1} className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <Icon name="arrow-left" className="w-5 h-5" />
                 </button>
                 <span className="text-sm font-bold text-gray-700">Trang {currentPage} / {totalPages}</span>
-                <button onClick={() => setPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                    <Icon name="chevron-right" className="w-5 h-5" />
+                <button onClick={() => setSectionPages(prev => ({ ...prev, [sectionKey]: Math.min(totalPages, currentPage + 1) }))} disabled={currentPage === totalPages} className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <Icon name="arrow-right" className="w-5 h-5" />
                 </button>
             </div>
         );
@@ -599,49 +616,68 @@ const getPurchaseCount = (course: Course) => {
                         </div>
                     ) : filtered.length > 0 ? (
                         <div className="space-y-12">
-                            {/* Paid Section */}
-                            {paidCourses.length > 0 && (
-                                <div>
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600"><Icon name="star" className="w-6 h-6" /></div>
-                                        <h2 className="text-2xl font-bold text-gray-900">Khóa học trả phí</h2>
-                                        <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-1 rounded-full">{paidCourses.length}</span>
+                            {sortedKeys.map((key) => {
+                                const { paid, free } = groups[key];
+                                const paidKey = `${key}_paid`;
+                                const freeKey = `${key}_free`;
+                                const paidPage = getPage(paidKey);
+                                const freePage = getPage(freeKey);
+
+                                const visiblePaid = paid.slice((paidPage - 1) * ITEMS_PER_PAGE, paidPage * ITEMS_PER_PAGE);
+                                const visibleFree = free.slice((freePage - 1) * ITEMS_PER_PAGE, freePage * ITEMS_PER_PAGE);
+
+                                return (
+                                    <div key={key} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                                        <h2 className="text-2xl font-bold text-gray-900 mb-6 pl-4 border-l-4 border-blue-600">
+                                            {key}
+                                        </h2>
+
+                                        {/* Paid Section */}
+                                        {paid.length > 0 && (
+                                            <div className="mb-8">
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600"><Icon name="star" className="w-4 h-4" /></div>
+                                                    <h3 className="text-lg font-bold text-gray-800">Khóa học trả phí</h3>
+                                                </div>
+                                                <div className="cp-grid">
+                                                    {visiblePaid.map((course, index) => (
+                                                        <CourseCard 
+                                                            key={`${course.ID}-${index}`} 
+                                                            course={course} 
+                                                            index={index} 
+                                                            purchaseCount={getPurchaseCount(course)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                                {renderPagination(paidKey, paid.length)}
+                                            </div>
+                                        )}
+
+                                        {paid.length > 0 && free.length > 0 && <div className="border-t border-gray-100 my-8" />}
+
+                                        {/* Free Section */}
+                                        {free.length > 0 && (
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600"><Icon name="gift" className="w-4 h-4" /></div>
+                                                    <h3 className="text-lg font-bold text-gray-800">Khóa học miễn phí</h3>
+                                                </div>
+                                                <div className="cp-grid">
+                                                    {visibleFree.map((course, index) => (
+                                                        <CourseCard 
+                                                            key={`${course.ID}-${index}`} 
+                                                            course={course} 
+                                                            index={index}
+                                                            purchaseCount={getPurchaseCount(course)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                                {renderPagination(freeKey, free.length)}
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="cp-grid">
-                                        {paginatedPaid.map((course, index) => (
-                                            <CourseCard 
-                                                key={`${course.ID}-${index}`} 
-                                                course={course} 
-                                                index={index} 
-                                                purchaseCount={getPurchaseCount(course)}
-                                            />
-                                        ))}
-                                    </div>
-                                    {renderPagination(paidPage, totalPaidPages, setPaidPage)}
-                                </div>
-                            )}
-                            {paidCourses.length > 0 && freeCourses.length > 0 && <div className="border-t border-gray-200" />}
-                            {/* Free Section */}
-                            {freeCourses.length > 0 && (
-                                <div>
-                                    <div className="flex items-center gap-3 mb-6">
-                                        <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600"><Icon name="gift" className="w-6 h-6" /></div>
-                                        <h2 className="text-2xl font-bold text-gray-900">Khóa học miễn phí</h2>
-                                        <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">{freeCourses.length}</span>
-                                    </div>
-                                    <div className="cp-grid">
-                                        {paginatedFree.map((course, index) => (
-                                            <CourseCard 
-                                                key={`${course.ID}-${index}`} 
-                                                course={course} 
-                                                index={index}
-                                                purchaseCount={getPurchaseCount(course)}
-                                            />
-                                        ))}
-                                    </div>
-                                    {renderPagination(freePage, totalFreePages, setFreePage)}
-                                </div>
-                            )}
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="cp-empty">

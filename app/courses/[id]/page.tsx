@@ -43,11 +43,18 @@ const FeatureCard = ({ title, items, iconName, colorClass, iconColorClass }: { t
     </div>
 );
 
+const getYoutubeEmbedUrl = (url: string) => {
+    if (!url) return '';
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^#&?]*)/);
+    return match && match[1] ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : url;
+};
+
 const CourseContentItem = React.memo<{ 
     item: ScientificArticle; 
     isUnlocked: boolean; 
     index: number; 
-}>(({ item, isUnlocked }) => {
+    onPlay: (url: string) => void;
+}>(({ item, isUnlocked, onPlay }) => {
     const isVideo = item.DocumentURL?.includes('youtube.com') || item.DocumentURL?.includes('youtu.be') || item.Title.toLowerCase().includes('video');
 
     if (isUnlocked) {
@@ -56,6 +63,12 @@ const CourseContentItem = React.memo<{
                 href={item.DocumentURL} 
                 target="_blank" 
                 rel="noopener noreferrer"
+                onClick={(e) => {
+                    if (isVideo) {
+                        e.preventDefault();
+                        onPlay(item.DocumentURL);
+                    }
+                }}
                 className="group flex items-center justify-between p-3 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
             >
                 <div className="flex items-center gap-3 min-w-0">
@@ -107,6 +120,8 @@ export default function CourseDetailPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isPurchasing, setIsPurchasing] = useState(false);
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+    const [playingVideo, setPlayingVideo] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'syllabus' | 'newest' | 'schedule'>('syllabus');
 
     const [groupedContent, setGroupedContent] = useState<{ [key: string]: ScientificArticle[] }>({});
     const [stageOrder, setStageOrder] = useState<string[]>([]);
@@ -245,6 +260,35 @@ export default function CourseDetailPage() {
         loadData();
     }, [params.id, currentUser, router, addToast]);
 
+    const parseDate = (dateStr: string | undefined) => {
+        if (!dateStr) return new Date(0);
+        // Format: dd/MM/yyyy HH:mm:ss (e.g., 26/11/2021 13:26:15)
+        const parts = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/);
+        if (parts) {
+            return new Date(
+                parseInt(parts[3]),
+                parseInt(parts[2]) - 1,
+                parseInt(parts[1]),
+                parseInt(parts[4]),
+                parseInt(parts[5]),
+                parseInt(parts[6])
+            );
+        }
+        return new Date(dateStr);
+    };
+
+    const newestContent = useMemo(() => {
+        return [...contentItems].sort((a, b) => {
+            return parseDate((b as any).SubmissionDate).getTime() - parseDate((a as any).SubmissionDate).getTime();
+        });
+    }, [contentItems]);
+
+    const scheduleContent = useMemo(() => {
+        return [...contentItems].sort((a, b) => {
+            return parseDate((a as any).SubmissionDate).getTime() - parseDate((b as any).SubmissionDate).getTime();
+        });
+    }, [contentItems]);
+
     const handlePurchase = async () => {
         if (!currentUser) {
             addToast('Vui lòng đăng nhập để đăng ký khóa học.', 'info');
@@ -268,15 +312,14 @@ export default function CourseDetailPage() {
         try {
             const result = await purchasePremiumCategory(currentUser.Email, course.Category);
             if (result.success) {
-                addToast('Đăng ký thành công! Bạn đã có thể truy cập nội dung khóa học.', 'success');
-                await refreshCurrentUser();
-                setIsPurchased(true);
+                alert('Đăng ký thành công! Trang sẽ được tải lại để cập nhật nội dung.');
+                window.location.reload();
             } else {
                 addToast(result.error || 'Giao dịch thất bại.', 'error');
+                setIsPurchasing(false);
             }
         } catch (e: any) {
             addToast(e.message || 'Lỗi kết nối.', 'error');
-        } finally {
             setIsPurchasing(false);
         }
     };
@@ -473,14 +516,14 @@ export default function CourseDetailPage() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                                 <FeatureCard 
                                     title="Video Học Thử + Livestream"
-                                    items={['Học qua Sách ID kèm video bài giảng quay sẵn', 'Học qua Livestream trên web Moon.vn']}
+                                    items={['Học qua Sách ID kèm video bài giảng quay sẵn', 'Học qua Livestream trên web sunisvg.netlify.app với tương tác trực tiếp cùng giáo viên']}
                                     colorClass="bg-blue-50"
                                     iconColorClass="text-blue-600"
                                     iconName="play-circle"
                                 />
                                 <FeatureCard 
-                                    title="Sách ID"
-                                    items={['Nội dung và bài tập được tuyển chọn và kiểm duyệt', 'Hệ thống bài tập được xây dựng từ cơ bản đến nâng cao']}
+                                    title="Tài liệu Ôn Tập Chọn Lọc"
+                                    items={['Nội dung và bài tập được tuyển chọn và kiểm duyệt', 'Hệ thống bài tập được xây dựng từ cơ bản đến nâng cao', 'Lưu ý: Một số hệ thống tài liệu đang gặp trục trặc về hiển thị, đội ngũ đang khẩn trương khắc phục. Mong quý phụ huynh và học sinh thông cảm và tiếp tục ủng hộ!']}
                                     colorClass="bg-green-50"
                                     iconColorClass="text-green-600"
                                     iconName="book"
@@ -517,51 +560,117 @@ export default function CourseDetailPage() {
 
                         {/* 4. Syllabus Section (De cuong) */}
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
-                            <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Đề cương</h2>
+                            <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Trọn bộ khóa học </h2>
                             
                             <div className="flex justify-center gap-4 mb-8">
-                                <button className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                                <button 
+                                    onClick={() => setActiveTab('syllabus')}
+                                    className={`px-6 py-2.5 font-bold rounded-lg transition-all ${activeTab === 'syllabus' ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                >
                                     Đề cương
                                 </button>
-                                <button className="px-6 py-2.5 bg-white border border-gray-200 text-gray-600 font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                                <button 
+                                    onClick={() => setActiveTab('newest')}
+                                    className={`px-6 py-2.5 font-bold rounded-lg transition-all ${activeTab === 'newest' ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                >
                                     Bài mới
                                 </button>
-                                <button className="px-6 py-2.5 bg-white border border-gray-200 text-gray-600 font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                                <button 
+                                    onClick={() => setActiveTab('schedule')}
+                                    className={`px-6 py-2.5 font-bold rounded-lg transition-all ${activeTab === 'schedule' ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                >
                                     Lịch phát hành
                                 </button>
                             </div>
 
-                            {stageOrder.length > 0 ? (
-                                <div className="space-y-0">
-                                    {stageOrder.map((stageName, stageIndex) => (
-                                        <div key={stageName} className="border-b border-gray-100 last:border-0">
-                                            <div className="flex items-center justify-between py-5 cursor-pointer hover:bg-gray-50 transition-colors group">
-                                                <h3 className="font-bold text-blue-600 uppercase text-sm group-hover:text-blue-800 pl-2">
-                                                    {stageName}
-                                                </h3>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="w-8 h-8 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center shadow-sm">
-                                                        {groupedContent[stageName].length}
-                                                    </span>
+                            {activeTab === 'syllabus' && (
+                                stageOrder.length > 0 ? (
+                                    <div className="space-y-0">
+                                        {stageOrder.map((stageName, stageIndex) => (
+                                            <div key={stageName} className="border-b border-gray-100 last:border-0">
+                                                <div className="flex items-center justify-between py-5 cursor-pointer hover:bg-gray-50 transition-colors group">
+                                                    <h3 className="font-bold text-blue-600 uppercase text-sm group-hover:text-blue-800 pl-2">
+                                                        {stageName}
+                                                    </h3>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="w-8 h-8 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center shadow-sm">
+                                                            {groupedContent[stageName].length}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {/* Always expanded for now as per image style which shows list */}
+                                                <div className="pl-4 pb-4">
+                                                    {groupedContent[stageName].map((item, index) => (
+                                                        <CourseContentItem 
+                                                            key={item.ID} 
+                                                            item={item} 
+                                                            isUnlocked={isPurchased || course.Price === 0}
+                                                            index={index}
+                                                            onPlay={setPlayingVideo}
+                                                        />
+                                                    ))}
                                                 </div>
                                             </div>
-                                            {/* Always expanded for now as per image style which shows list */}
-                                            <div className="pl-4 pb-4">
-                                                {groupedContent[stageName].map((item, index) => (
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12 text-gray-500">
+                                        Nội dung đang được cập nhật.
+                                    </div>
+                                )
+                            )}
+
+                            {activeTab === 'newest' && (
+                                <div className="space-y-2">
+                                    {newestContent.length > 0 ? (
+                                        newestContent.map((item, index) => (
+                                            <CourseContentItem 
+                                                key={item.ID} 
+                                                item={item} 
+                                                isUnlocked={isPurchased || course.Price === 0}
+                                                index={index}
+                                                onPlay={setPlayingVideo}
+                                            />
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-12 text-gray-500">
+                                            Chưa có bài mới.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab === 'schedule' && (
+                                <div className="relative border-l-2 border-blue-100 ml-4 space-y-8 py-4">
+                                    {scheduleContent.length > 0 ? (
+                                        scheduleContent.map((item, index) => (
+                                            <div key={item.ID} className="relative pl-8">
+                                                {/* Dot */}
+                                                <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-white border-2 border-blue-500"></div>
+                                                
+                                                <div className="text-sm text-gray-500 font-medium mb-1">
+                                                    {(item as any).SubmissionDate || 'Đang cập nhật'}
+                                                </div>
+                                                
+                                                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 hover:border-blue-200 transition-colors">
+                                                    <h4 className="font-bold text-gray-900 mb-1">{item.Title}</h4>
+                                                    <p className="text-xs text-gray-500 line-clamp-2 mb-3">{item.Abstract || 'Nội dung bài học...'}</p>
+                                                    
                                                     <CourseContentItem 
                                                         key={item.ID} 
                                                         item={item} 
                                                         isUnlocked={isPurchased || course.Price === 0}
                                                         index={index}
+                                                        onPlay={setPlayingVideo}
                                                     />
-                                                ))}
+                                                </div>
                                             </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-12 text-gray-500 pl-8">
+                                            Chưa có lịch phát hành.
                                         </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12 text-gray-500">
-                                    Nội dung đang được cập nhật.
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -642,6 +751,26 @@ export default function CourseDetailPage() {
                     currentUser={currentUser} 
                     onSuccess={handleDepositSuccess}
                 />
+            )}
+
+            {/* Video Modal */}
+            {playingVideo && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm" onClick={() => setPlayingVideo(null)}>
+                    <div className="relative w-full max-w-5xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10" onClick={e => e.stopPropagation()}>
+                        <button 
+                            onClick={() => setPlayingVideo(null)}
+                            className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-all backdrop-blur-md"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                        <iframe 
+                            src={getYoutubeEmbedUrl(playingVideo)} 
+                            className="w-full h-full" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowFullScreen
+                        />
+                    </div>
+                </div>
             )}
         </div>
     );

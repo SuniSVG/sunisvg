@@ -17,7 +17,8 @@ import {
     FileText, 
     AlertCircle,
     CheckCircle2,
-    Link as LinkIcon
+    Link as LinkIcon,
+    UploadCloud
 } from 'lucide-react';
 
 export default function SubmitArticlePage() {
@@ -36,6 +37,8 @@ export default function SubmitArticlePage() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [previewMode, setPreviewMode] = useState(false);
+    const [uploadType, setUploadType] = useState<'link' | 'file'>('link');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     useEffect(() => {
         if (!currentUser) {
@@ -47,6 +50,21 @@ export default function SubmitArticlePage() {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setSelectedFile(e.target.files[0]);
+        }
+    };
+
+    const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -62,8 +80,28 @@ export default function SubmitArticlePage() {
             return;
         }
 
-        if (!formData.content.trim() && !formData.documentUrl.trim()) {
-            addToast('Vui lòng nhập nội dung bài viết hoặc cung cấp liên kết tài liệu.', 'error');
+        if (!formData.description.trim()) {
+            addToast('Mô tả ngắn (Tóm tắt) không được để trống.', 'error');
+            return;
+        }
+
+        let fileInfo = null;
+        if (uploadType === 'file' && selectedFile) {
+            try {
+                const base64 = await fileToBase64(selectedFile);
+                fileInfo = {
+                    fileContent: base64.split(',')[1],
+                    mimeType: selectedFile.type,
+                    fileName: selectedFile.name
+                };
+            } catch (error) {
+                addToast('Lỗi xử lý tệp tin.', 'error');
+                return;
+            }
+        }
+
+        if (!formData.content.trim() && !formData.documentUrl.trim() && !fileInfo) {
+            addToast('Vui lòng nhập nội dung bài viết hoặc cung cấp tài liệu (Link/File).', 'error');
             return;
         }
 
@@ -72,17 +110,21 @@ export default function SubmitArticlePage() {
         try {
             const articleData = {
                 Title: formData.title,
-                Authors: currentUser['Tên tài khoản'],
+                Authors: currentUser['Tên tài khoản'] || currentUser.Email.split('@')[0],
                 Abstract: formData.description,
                 Keywords: formData.keywords,
                 Category: formData.category,
-                DocumentURL: formData.documentUrl,
+                DocumentURL: uploadType === 'link' ? formData.documentUrl : '',
                 Content: formData.content,
                 ThumbnailURL: formData.thumbnailUrl,
-                submitterEmail: currentUser.Email
+                submitterEmail: currentUser.Email,
+                fileInfo: fileInfo
             };
 
+            console.log('Submitting article:', articleData);
+
             const result = await addArticle(articleData, currentUser.Email);
+            console.log('Full result:', JSON.stringify(result));
 
             if (result.success) {
                 addToast('Bài viết đã được gửi duyệt thành công!', 'success');
@@ -91,7 +133,7 @@ export default function SubmitArticlePage() {
                 addToast(result.error || 'Có lỗi xảy ra khi đăng bài.', 'error');
             }
         } catch (error) {
-            console.error(error);
+            console.error('Caught error:', error);
             addToast('Có lỗi xảy ra khi đăng bài.', 'error');
         } finally {
             setIsSubmitting(false);
@@ -152,6 +194,12 @@ export default function SubmitArticlePage() {
                                         <option value="Tài liệu học tập">Tài liệu học tập</option>
                                         <option value="Góc hỏi đáp">Góc hỏi đáp</option>
                                         <option value="Tin tức giáo dục">Tin tức giáo dục</option>
+                                        <option value="Toán học">Toán học</option>
+                                        <option value="Vật lý">Vật lý</option>
+                                        <option value="Hóa học">Hóa học</option>
+                                        <option value="Sinh học">Sinh học</option>
+                                        <option value="Lịch sử">Lịch sử</option>
+                                        <option value="Địa lý">Địa lý</option>
                                         <option value="Khác">Khác</option>
                                     </select>
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
@@ -187,54 +235,72 @@ export default function SubmitArticlePage() {
                             />
                         </div>
 
-                        {/* Thumbnail */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                                <ImageIcon className="w-4 h-4 text-gray-400" />
-                                Link ảnh bìa (Thumbnail URL)
-                            </label>
-                            <div className="flex gap-4 items-start">
-                                <div className="flex-1">
-                                    <input
-                                        type="url"
-                                        name="thumbnailUrl"
-                                        value={formData.thumbnailUrl}
-                                        onChange={handleChange}
-                                        placeholder="https://example.com/image.jpg"
-                                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none text-sm font-mono text-gray-600"
-                                    />
-                                    <p className="text-xs text-gray-400 mt-1.5 ml-1">Dán đường dẫn hình ảnh từ Google Drive, Imgur, v.v.</p>
-                                </div>
-                                <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden flex-shrink-0 relative group">
-                                    {formData.thumbnailUrl ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img 
-                                            src={formData.thumbnailUrl} 
-                                            alt="Preview" 
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                        />
-                                    ) : (
-                                        <ImageIcon className="w-8 h-8 text-gray-300" />
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Document URL */}
+                        {/* Document Source */}
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                                 <LinkIcon className="w-4 h-4 text-gray-400" />
-                                Link tài liệu (Google Drive, PDF...)
+                                Tài liệu đính kèm
                             </label>
-                            <input
-                                type="url"
-                                name="documentUrl"
-                                value={formData.documentUrl}
-                                onChange={handleChange}
-                                placeholder="https://drive.google.com/..."
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none text-sm font-mono text-gray-600"
-                            />
+                            
+                            <div className="flex gap-3 mb-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setUploadType('link')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                                        uploadType === 'link' 
+                                            ? 'bg-green-50 text-green-700 border-green-200' 
+                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    Link tài liệu
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setUploadType('file')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                                        uploadType === 'file' 
+                                            ? 'bg-green-50 text-green-700 border-green-200' 
+                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    Tải tệp lên
+                                </button>
+                            </div>
+
+                            {uploadType === 'link' ? (
+                                <input
+                                    type="url"
+                                    name="documentUrl"
+                                    value={formData.documentUrl}
+                                    onChange={handleChange}
+                                    placeholder="https://drive.google.com/..."
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none text-sm font-mono text-gray-600"
+                                />
+                            ) : (
+                                <div className="relative">
+                                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer relative">
+                                        <input
+                                            type="file"
+                                            onChange={handleFileChange}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            accept=".pdf,.doc,.docx,.ppt,.pptx"
+                                        />
+                                        <div className="flex flex-col items-center gap-2 pointer-events-none">
+                                            <UploadCloud className="w-8 h-8 text-gray-400" />
+                                            {selectedFile ? (
+                                                <div className="text-sm font-medium text-green-600">
+                                                    {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                                                </div>
+                                            ) : (
+                                                <div className="text-sm text-gray-500">
+                                                    <span className="font-bold text-green-600">Nhấn để tải lên</span> hoặc kéo thả file vào đây
+                                                    <p className="text-xs text-gray-400 mt-1">Hỗ trợ PDF, Word, PowerPoint (Max 10MB)</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Content */}
