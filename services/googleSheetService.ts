@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUXo2vSbS7gAl1dlw1yYWqSZ8hv_0rBxmnRQuozgLMLIfeYa4IScbdTCrKwKJDocU_/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx-TKgzW7jZds9LHBrNMUmOhwR6EqoFYcDKV6jh7qBBMxOYm2A4nhb8Bv8XzOMPFvU/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -1177,13 +1177,7 @@ export async function uploadForumImage(
             postId: tempPostId,
         });
 
-        if (result.status === 'success') {
-            // Append metadata to URL hash for frontend rendering
-            const meta = new URLSearchParams();
-            meta.set('mime', file.type);
-            meta.set('name', file.name);
-            resolve(`${result.url}#${meta.toString()}`);
-        }
+        if (result.status === 'success') resolve(result.url);
         else reject(new Error(result.message));
       } catch (err) {
         reject(err);
