@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { timeAgo } from '@/utils/dateUtils';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
-import { Reply } from 'lucide-react';
+import { Reply, FileText, Download } from 'lucide-react';
 import 'katex/dist/katex.min.css';
 
 const InlineMath = dynamic(() => import('react-katex').then(mod => mod.InlineMath), { ssr: false });
@@ -71,6 +71,59 @@ const parseForumDate = (dateStr: string | undefined): Date => {
 
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? new Date(0) : d;
+};
+
+// Helper để phân loại file từ URL
+const parseAttachments = (urlsStr: string | undefined) => {
+    if (!urlsStr || !urlsStr.trim()) return { images: [], files: [] };
+    
+    const rawUrls = urlsStr.split(',').filter(Boolean);
+    const images: string[] = [];
+    const files: { url: string; name: string; mime: string }[] = [];
+
+    rawUrls.forEach(url => {
+        let cleanUrl = url.trim();
+        let mime = '';
+        let name = 'File đính kèm';
+
+        if (url.includes('#')) {
+            const [u, hash] = url.split('#');
+            cleanUrl = u.trim();
+            const params = new URLSearchParams(hash);
+            mime = params.get('mime') || '';
+            name = params.get('name') || 'File đính kèm';
+        }
+
+        // Nếu là ảnh hoặc không có metadata (ảnh cũ) -> gom vào images
+        if (mime.startsWith('image/') || (!mime && !url.includes('#'))) {
+            images.push(url); // Giữ nguyên URL gốc (có thể có hash) để xử lý sau nếu cần, hoặc cleanUrl
+        } else {
+            files.push({ url: cleanUrl, name, mime });
+        }
+    });
+
+    return { images, files };
+};
+
+// Component hiển thị file đính kèm (không phải ảnh)
+const FileAttachmentList = ({ files }: { files: { url: string; name: string; mime: string }[] }) => {
+    if (files.length === 0) return null;
+    return (
+        <div className="flex flex-col gap-2 mt-2">
+            {files.map((f, i) => (
+                <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-200 transition-colors group">
+                    <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm text-blue-500 border border-gray-100">
+                        <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700 truncate group-hover:text-blue-700">{f.name}</p>
+                        <p className="text-xs text-gray-400 uppercase">{f.mime.split('/')[1] || 'FILE'}</p>
+                    </div>
+                    <Download className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+                </a>
+            ))}
+        </div>
+    );
 };
 
 // --- Sub-components ---
@@ -187,8 +240,8 @@ function CommentInput({ postId, parentId, onSuccess, onCancel, placeholder, auto
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-wrap">
                     {images.map((url, i) => (
-                        <div key={i} className="relative w-10 h-10 rounded-lg overflow-hidden border border-gray-200 group">
-                            <Image src={convertGoogleDriveUrl(url)} alt="" fill className="object-cover" referrerPolicy="no-referrer" />
+                        <div key={i} className="relative w-10 h-10 rounded-lg overflow-hidden border border-gray-200 group bg-gray-50 flex items-center justify-center">
+                            {url.includes('mime=image') || !url.includes('#') ? <Image src={convertGoogleDriveUrl(url.split('#')[0])} alt="" fill className="object-cover" referrerPolicy="no-referrer" /> : <FileText className="w-5 h-5 text-blue-500" />}
                             <button type="button" onClick={() => setImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                 <Icon name="x" className="w-3 h-3 text-white" />
                             </button>
@@ -196,8 +249,8 @@ function CommentInput({ postId, parentId, onSuccess, onCancel, placeholder, auto
                     ))}
                     {images.length < 3 && (
                         <label className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${isUploading ? 'bg-blue-50 text-blue-400 pointer-events-none' : 'bg-white border border-gray-200 hover:bg-gray-100 text-gray-600'}`}>
-                            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={handleImageSelect} disabled={isUploading} className="hidden" />
-                            {isUploading ? <div className="w-3 h-3 rounded-full border-2 border-blue-300 border-t-blue-500 animate-spin" /> : <Icon name="image" className="w-3.5 h-3.5" />}
+                            <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" multiple onChange={handleImageSelect} disabled={isUploading} className="hidden" />
+                            {isUploading ? <div className="w-3 h-3 rounded-full border-2 border-blue-300 border-t-blue-500 animate-spin" /> : <Icon name="paperclip" className="w-3.5 h-3.5" />}
                         </label>
                     )}
                 </div>
@@ -251,15 +304,20 @@ function CommentItem({ comment, allComments, accounts, postId, onReplySuccess, s
                         </div>
                         <div className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>
                         {(comment as any).ImageURLs && (comment as any).ImageURLs.trim() && (() => {
-                            const imgs = ((comment as any).ImageURLs as string).split(',').filter(Boolean);
+                            const { images, files } = parseAttachments((comment as any).ImageURLs);
                             return (
-                                <div className={`mt-2 grid gap-1 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                                    {imgs.map((url, i) => (
-                                        <button key={i} type="button" onClick={() => setLightbox({ urls: imgs, index: i })} className={`relative overflow-hidden rounded-lg border border-gray-100 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in ${imgs.length === 1 ? 'h-32' : 'h-20'}`}>
-                                            <Image src={convertGoogleDriveUrl(url.trim())} alt="" fill className="object-cover" referrerPolicy="no-referrer" />
-                                        </button>
-                                    ))}
-                                </div>
+                                <>
+                                    {images.length > 0 && (
+                                        <div className={`mt-2 grid gap-1 ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                            {images.map((url, i) => (
+                                                <button key={i} type="button" onClick={() => setLightbox({ urls: images, index: i })} className={`relative overflow-hidden rounded-lg border border-gray-100 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in ${images.length === 1 ? 'h-32' : 'h-20'}`}>
+                                                    <Image src={convertGoogleDriveUrl(url.split('#')[0].trim())} alt="" fill className="object-cover" referrerPolicy="no-referrer" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <FileAttachmentList files={files} />
+                                </>
                             );
                         })()}
                     </div>
@@ -419,27 +477,34 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
 
                     {/* Hiển thị danh sách ảnh đính kèm */}
                     {post.ImageURLs && post.ImageURLs.trim() && (() => {
-                        const imgs = post.ImageURLs.split(',').filter(Boolean);
+                        const { images, files } = parseAttachments(post.ImageURLs);
                         return (
-                            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {imgs.map((url, index) => (
-                                    <div 
-                                        key={index}
-                                        onClick={() => setLightbox({ urls: imgs, index })}
-                                        className="relative aspect-video rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 shadow-sm group block hover:shadow-md transition-all cursor-pointer"
-                                    >
-                                        <Image
-                                            src={convertGoogleDriveUrl(url.trim())}
-                                            alt={`Ảnh đính kèm ${index + 1}`}
-                                            fill
-                                            className="object-contain"
-                                            referrerPolicy="no-referrer"
-                                            priority={index === 0}
-                                        />
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+                            <>
+                                {images.length > 0 && (
+                                    <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {images.map((url, index) => (
+                                            <div 
+                                                key={index}
+                                                onClick={() => setLightbox({ urls: images, index })}
+                                                className="relative aspect-video rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 shadow-sm group block hover:shadow-md transition-all cursor-pointer"
+                                            >
+                                                <Image
+                                                    src={convertGoogleDriveUrl(url.split('#')[0].trim())}
+                                                    alt={`Ảnh đính kèm ${index + 1}`}
+                                                    fill
+                                                    className="object-contain"
+                                                    referrerPolicy="no-referrer"
+                                                    priority={index === 0}
+                                                />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                )}
+                                <div className="mt-4">
+                                    <FileAttachmentList files={files} />
+                                </div>
+                            </>
                         );
                     })()}
                 </article>

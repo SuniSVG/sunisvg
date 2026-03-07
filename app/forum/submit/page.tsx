@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { Icon } from '@/components/shared/Icon';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
+import { FileText } from 'lucide-react';
 
 const FORUM_CHANNELS = [
     'Thảo luận chung', 'Toán học', 'Vật lý', 'Hóa học', 'Sinh học', 
@@ -188,9 +189,33 @@ export default function CreatePostPage() {
                         {uploadedImages.length > 0 && (
                             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
                                 {uploadedImages.map((url, index) => (
-                                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border-2 border-gray-100 group bg-gray-50">
-                                        <Image src={convertGoogleDriveUrl(url)} alt={`Ảnh ${index + 1}`} fill className="object-cover" referrerPolicy="no-referrer" />
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border-2 border-gray-100 group bg-gray-50 flex items-center justify-center">
+                                        {(() => {
+                                            let cleanUrl = url;
+                                            let mime = '';
+                                            if (url.includes('#')) {
+                                                const [u, hash] = url.split('#');
+                                                cleanUrl = u;
+                                                mime = new URLSearchParams(hash).get('mime') || '';
+                                            }
+                                            const isImg = mime.startsWith('image/') || (!mime && !url.includes('#'));
+                                            
+                                            if (isImg) {
+                                                return (
+                                                    <Image src={convertGoogleDriveUrl(cleanUrl)} alt={`File ${index + 1}`} fill className="object-cover" referrerPolicy="no-referrer" />
+                                                );
+                                            } else {
+                                                return (
+                                                    <div className="flex flex-col items-center justify-center p-2 text-center">
+                                                        <FileText className="w-8 h-8 text-blue-500 mb-1" />
+                                                        <span className="text-[10px] text-gray-500 font-medium line-clamp-2 break-all">
+                                                            {new URLSearchParams(url.split('#')[1]).get('name') || 'File'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+                                        })()}
+                                        
                                         <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 hover:scale-110">
                                             <Icon name="x" className="w-3 h-3" />
                                         </button>
@@ -206,8 +231,8 @@ export default function CreatePostPage() {
 
                         {uploadedImages.length < 5 && (
                             <label className={`relative flex items-center justify-center gap-3 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isUploading ? 'border-blue-300 bg-blue-50 pointer-events-none' : 'border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'}`}>
-                                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={handleImageSelect} disabled={isUploading} className="hidden" />
-                                {isUploading ? <><div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-300 border-t-blue-600" /><span className="text-sm font-medium text-blue-600">Đang tải lên...</span></> : <><Icon name="image" className="w-5 h-5 text-gray-400" /><span className="text-sm font-medium text-gray-500">Nhấn để thêm ảnh</span><span className="text-xs text-gray-400">JPG, PNG, GIF, WEBP · Tối đa 5 ảnh</span></>}
+                                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" multiple onChange={handleImageSelect} disabled={isUploading} className="hidden" />
+                                {isUploading ? <><div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-300 border-t-blue-600" /><span className="text-sm font-medium text-blue-600">Đang tải lên...</span></> : <><Icon name="upload" className="w-5 h-5 text-gray-400" /><span className="text-sm font-medium text-gray-500">Thêm ảnh hoặc tài liệu</span><span className="text-xs text-gray-400">PDF, Word, Excel, Ảnh...</span></>}
                             </label>
                         )}
                     </div>

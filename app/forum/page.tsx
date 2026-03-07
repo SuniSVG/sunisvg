@@ -442,7 +442,10 @@ export default function ForumPage() {
 
                                                             {/* Ảnh tách ra khỏi Link để tránh click nhầm */}
                                                             {post.ImageURLs && post.ImageURLs.trim() && (() => {
-                                                                const imgs = post.ImageURLs.split(',').filter(Boolean);
+                                                                // Chỉ lấy ảnh để hiển thị preview ngoài feed
+                                                                const imgs = post.ImageURLs.split(',').filter(u => !u.includes('#') || u.includes('mime=image')).filter(Boolean);
+                                                                if (imgs.length === 0) return null;
+                                                                
                                                                 return (
                                                                     <div className={`mt-2 mb-3 grid gap-1.5 ${imgs.length === 1 ? 'grid-cols-1' : imgs.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
                                                                         {imgs.slice(0, 3).map((url, i) => (
@@ -457,7 +460,7 @@ export default function ForumPage() {
                                                                                 className={`relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50 hover:opacity-90 hover:scale-[1.02] transition-all duration-200 cursor-zoom-in ${imgs.length === 1 ? 'h-48' : 'h-28'}`}
                                                                             >
                                                                                 <Image
-                                                                                    src={convertGoogleDriveUrl(url.trim())}
+                                                                                    src={convertGoogleDriveUrl(url.split('#')[0].trim())}
                                                                                     alt=""
                                                                                     fill
                                                                                     className="object-cover"

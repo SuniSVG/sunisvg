@@ -1177,7 +1177,13 @@ export async function uploadForumImage(
             postId: tempPostId,
         });
 
-        if (result.status === 'success') resolve(result.url);
+        if (result.status === 'success') {
+            // Append metadata to URL hash for frontend rendering
+            const meta = new URLSearchParams();
+            meta.set('mime', file.type);
+            meta.set('name', file.name);
+            resolve(`${result.url}#${meta.toString()}`);
+        }
         else reject(new Error(result.message));
       } catch (err) {
         reject(err);
