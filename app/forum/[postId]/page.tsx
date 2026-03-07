@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { fetchForumPosts, fetchForumComments, addForumComment, fetchAccounts } from '@/services/googleSheetService';
+import { fetchForumPosts, fetchForumComments, addForumComment, fetchAccounts, uploadForumImage } from '@/services/googleSheetService';
 import type { ForumPost, ForumComment, Account } from '@/types';
 import { Icon } from '@/components/shared/Icon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -82,10 +82,27 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
     const [error, setError] = useState<string | null>(null);
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
+    
+    // Comment image upload state
+    const [commentImages, setCommentImages] = useState<string[]>([]);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const tempCommentId = useMemo(() => crypto.randomUUID(), []);
     
     const { currentUser } = useAuth();
     const { addToast } = useToast();
     const router = useRouter();
+
+    useEffect(() => {
+        if (!lightbox) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setLightbox(null);
+            if (e.key === 'ArrowRight') setLightbox(l => l && ({ ...l, index: (l.index + 1) % l.urls.length }));
+            if (e.key === 'ArrowLeft') setLightbox(l => l && ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length }));
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [lightbox]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -120,9 +137,59 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
         loadData();
     }, [postId]);
 
+    const handleCommentImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+
+        const remaining = 3 - commentImages.length; // Comment giới hạn 3 ảnh
+        const toUpload = files.slice(0, remaining);
+
+        setIsUploadingImage(true);
+        try {
+            for (const file of toUpload) {
+                const url = await uploadForumImage(file, tempCommentId);
+                setCommentImages(prev => [...prev, url]);
+            }
+        } catch {
+            addToast('Upload ảnh thất bại.', 'error');
+        } finally {
+            setIsUploadingImage(false);
+            e.target.value = '';
+        }
+    };
+
+    const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const items = Array.from(e.clipboardData.items);
+        const imageItems = items.filter(item => item.type.startsWith('image/'));
+        
+        if (imageItems.length === 0) return;
+        
+        e.preventDefault();
+        
+        const remaining = 3 - commentImages.length;
+        if (remaining <= 0) {
+            addToast('Đã đạt giới hạn ảnh.', 'info');
+            return;
+        }
+
+        setIsUploadingImage(true);
+        try {
+            for (const item of imageItems.slice(0, remaining)) {
+                const file = item.getAsFile();
+                if (!file) continue;
+                const url = await uploadForumImage(file, tempCommentId);
+                setCommentImages(prev => [...prev, url]);
+            }
+        } catch {
+            addToast('Upload ảnh thất bại.', 'error');
+        } finally {
+            setIsUploadingImage(false);
+        }
+    };
+
     const handleCommentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newComment.trim() || !currentUser || !post) return;
+        if ((!newComment.trim() && commentImages.length === 0) || !currentUser || !post) return;
 
         setIsSubmitting(true);
         const commentData = {
@@ -131,6 +198,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
             Content: newComment,
             AuthorEmail: currentUser.Email,
             AuthorName: currentUser['Tên tài khoản'],
+            ImageURLs: commentImages.join(','),
         };
         
         const result = await addForumComment(commentData);
@@ -142,10 +210,12 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                 Timestamp: new Date().toLocaleString('vi-VN', {
                     year: 'numeric', month: '2-digit', day: '2-digit',
                     hour: '2-digit', minute: '2-digit', second: '2-digit'
-                })
+                }),
+                ImageURLs: commentImages.join(','),
             };
             setComments(prev => [...prev, optimisticComment]);
             setNewComment('');
+            setCommentImages([]);
             addToast('Bình luận của bạn đã được đăng.', 'success');
         } else {
             addToast(result.error || 'Không thể đăng bình luận.', 'error');
@@ -207,6 +277,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                     fill
                                     className="object-cover"
                                     referrerPolicy="no-referrer"
+                                    priority
                                 />
                             ) : (
                                 post.AuthorName.charAt(0)
@@ -226,6 +297,32 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                     </div>
                     <h1 className="text-3xl font-black text-gray-900 mb-6 leading-tight"><MathRenderer text={post.Title} /></h1>
                     <div className="text-gray-700 leading-relaxed whitespace-pre-wrap text-lg"><MathRenderer text={post.Content} /></div>
+
+                    {/* Hiển thị danh sách ảnh đính kèm */}
+                    {post.ImageURLs && post.ImageURLs.trim() && (() => {
+                        const imgs = post.ImageURLs.split(',').filter(Boolean);
+                        return (
+                            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {imgs.map((url, index) => (
+                                    <div 
+                                        key={index}
+                                        onClick={() => setLightbox({ urls: imgs, index })}
+                                        className="relative aspect-video rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 shadow-sm group block hover:shadow-md transition-all cursor-pointer"
+                                    >
+                                        <Image
+                                            src={convertGoogleDriveUrl(url.trim())}
+                                            alt={`Ảnh đính kèm ${index + 1}`}
+                                            fill
+                                            className="object-contain"
+                                            referrerPolicy="no-referrer"
+                                            priority={index === 0}
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
                 </article>
 
                 <section className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
@@ -253,19 +350,61 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                 <textarea
                                     value={newComment}
                                     onChange={e => setNewComment(e.target.value)}
+                                    onPaste={handlePaste}
                                     placeholder="Viết bình luận của bạn..."
                                     className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y font-medium"
                                     rows={3}
                                     required
                                 />
-                                <div className="flex justify-end">
-                                    <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-400 shadow-sm flex items-center gap-2">
+                                
+                                {/* Thanh công cụ dưới textarea */}
+                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                                    
+                                    {/* Nút upload ảnh + preview */}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {/* Preview thumbnails */}
+                                        {commentImages.map((url, i) => (
+                                            <div key={i} className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 group flex-shrink-0">
+                                                <Image
+                                                    src={convertGoogleDriveUrl(url)}
+                                                    alt=""
+                                                    fill
+                                                    className="object-cover"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCommentImages(prev => prev.filter((_, idx) => idx !== i))}
+                                                    className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                                                >
+                                                    <Icon name="x" className="w-3 h-3 text-white" />
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {/* Nút chọn ảnh */}
+                                        {commentImages.length < 3 && (
+                                            <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${isUploadingImage ? 'bg-blue-50 text-blue-400 pointer-events-none' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
+                                                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={handleCommentImageSelect} disabled={isUploadingImage} className="hidden" />
+                                                {isUploadingImage ? <><div className="w-3.5 h-3.5 rounded-full border-2 border-blue-300 border-t-blue-500 animate-spin" />Đang tải...</> : <><Icon name="image" className="w-3.5 h-3.5" />Thêm ảnh {commentImages.length > 0 && `(${commentImages.length}/3)`}</>}
+                                            </label>
+                                        )}
+                                    </div>
+
+                                    {/* Nút gửi */}
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting || isUploadingImage || (!newComment.trim() && commentImages.length === 0)}
+                                        className="px-5 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-300 transition-colors flex items-center gap-2"
+                                    >
                                         {isSubmitting ? (
+                                            <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                        ) : (
                                             <>
-                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></div>
-                                                Đang gửi...
+                                                <Icon name="send" className="w-4 h-4" />
+                                                Gửi
                                             </>
-                                        ) : 'Gửi bình luận'}
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -314,6 +453,31 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                                                 <span className="text-xs font-bold text-gray-400 ml-auto">{timeAgo(parseForumDate(comment.Timestamp).toISOString())}</span>
                                             </div>
                                             <div className="text-gray-700 whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>
+                                            
+                                            {/* Hiển thị ảnh trong comment */}
+                                            {(comment as any).ImageURLs && (comment as any).ImageURLs.trim() && (() => {
+                                                const imgs = (comment as any).ImageURLs.split(',').filter(Boolean);
+                                                return (
+                                                    <div className={`mt-2 grid gap-1 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                                        {imgs.map((url: string, i: number) => (
+                                                            <button
+                                                                key={i}
+                                                                type="button"
+                                                                onClick={() => setLightbox({ urls: imgs, index: i })}
+                                                                className={`relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in ${imgs.length === 1 ? 'h-40' : 'h-24'}`}
+                                                            >
+                                                                <Image
+                                                                    src={convertGoogleDriveUrl(url.trim())}
+                                                                    alt=""
+                                                                    fill
+                                                                    className="object-cover"
+                                                                    referrerPolicy="no-referrer"
+                                                                />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 );
@@ -327,6 +491,64 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                     </div>
                 </section>
             </div>
+
+            {/* Lightbox */}
+            {lightbox && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setLightbox(null)}
+                >
+                    <button
+                        className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                        onClick={() => setLightbox(null)}
+                    >
+                        <Icon name="x" className="w-6 h-6" />
+                    </button>
+
+                    {lightbox.urls.length > 1 && (
+                        <button
+                            className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setLightbox(l => l && ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length }));
+                            }}
+                        >
+                            <Icon name="chevron-left" className="w-8 h-8" />
+                        </button>
+                    )}
+
+                    <div
+                        className="relative max-w-5xl max-h-[85vh] w-full h-full"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <Image
+                            src={convertGoogleDriveUrl(lightbox.urls[lightbox.index].trim())}
+                            alt=""
+                            fill
+                            className="object-contain"
+                            referrerPolicy="no-referrer"
+                        />
+                    </div>
+
+                    {lightbox.urls.length > 1 && (
+                        <button
+                            className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setLightbox(l => l && ({ ...l, index: (l.index + 1) % l.urls.length }));
+                            }}
+                        >
+                            <Icon name="chevron-right" className="w-8 h-8" />
+                        </button>
+                    )}
+
+                    {lightbox.urls.length > 1 && (
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/90 text-sm font-medium bg-black/60 px-4 py-2 rounded-full backdrop-blur-md">
+                            {lightbox.index + 1} / {lightbox.urls.length}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

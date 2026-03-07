@@ -1,179 +1,220 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { addForumPost, fetchAccounts, fetchArticles } from '@/services/googleSheetService';
+import Image from 'next/image';
+import { addForumPost, uploadForumImage } from '@/services/googleSheetService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { Icon } from '@/components/shared/Icon';
-import type { Account, ScientificArticle, Badge } from '@/types';
-import { getUserBadges } from '@/utils/badgeUtils';
-import { BadgePill } from '@/components/shared/BadgePill';
+import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 
 const FORUM_CHANNELS = [
-    'Thảo luận chung', 'Toán học', 'Vật lý', 'Hóa học', 
-    'Sinh học', 'Ngữ văn', 'Lịch sử', 'Địa lý', 'Tiếng Anh', 'Hỏi đáp'
+    'Thảo luận chung', 'Toán học', 'Vật lý', 'Hóa học', 'Sinh học', 
+    'Ngữ văn', 'Lịch sử', 'Địa lý', 'Tiếng Anh', 'Hỏi đáp', 
+    'Những câu chuyện ngoài lề', 'Phòng tranh luận', 'Phòng thú tội'
 ];
 
 export default function CreatePostPage() {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [channel, setChannel] = useState(FORUM_CHANNELS[0]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    const [articles, setArticles] = useState<ScientificArticle[]>([]);
-    const [dataLoading, setDataLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
+    // Image upload state
+    const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const tempPostId = useMemo(() => crypto.randomUUID(), []);
+
     const { currentUser } = useAuth();
     const { addToast } = useToast();
     const router = useRouter();
 
-    useEffect(() => {
-        if (!currentUser) return;
-        const loadData = async () => {
-            setDataLoading(true);
-            try {
-                const [accData, artData] = await Promise.all([
-                    fetchAccounts(),
-                    fetchArticles()
-                ]);
-                setAccounts(accData);
-                setArticles(artData);
-            } catch (err) {
-                console.error("Failed to load user data for badges", err);
-            } finally {
-                setDataLoading(false);
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+
+        const remaining = 5 - uploadedImages.length;
+        const toUpload = files.slice(0, remaining);
+
+        if (files.length > remaining) {
+            addToast(`Chỉ upload thêm được ${remaining} ảnh nữa.`, 'info');
+        }
+
+        setIsUploading(true);
+        try {
+            for (const file of toUpload) {
+                const url = await uploadForumImage(file, tempPostId);
+                setUploadedImages(prev => [...prev, url]);
             }
-        };
-        loadData();
-    }, [currentUser]);
-
-    const currentUserBadges = useMemo((): Badge[] => {
-        if (!currentUser || accounts.length === 0) return [];
-        
-        const userAccount = accounts.find(acc => acc.Email.toLowerCase() === currentUser.Email.toLowerCase());
-        if (!userAccount) return [];
-
-        const userArticles = articles.filter(art => art.SubmitterEmail.toLowerCase() === currentUser.Email.toLowerCase());
-        const { displayBadges } = getUserBadges(userAccount, userArticles);
-        return displayBadges;
-    }, [currentUser, accounts, articles]);
-    
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!currentUser) {
-            router.push('/login');
-            return;
-        }
-
-        if (!title.trim() || !content.trim()) {
-            setError('Tiêu đề và nội dung không được để trống.');
-            return;
-        }
-        setError('');
-        setIsLoading(true);
-
-        const postData = {
-            Title: title,
-            Content: content,
-            Channel: channel,
-            AuthorEmail: currentUser.Email,
-            AuthorName: currentUser['Tên tài khoản'],
-        };
-        
-        const result = await addForumPost(postData);
-        
-        setIsLoading(false);
-        if (result.success) {
-            addToast('Bài viết của bạn đã được đăng thành công!', 'success');
-            router.push('/forum');
-        } else {
-            addToast(result.error || 'Đăng bài viết thất bại, vui lòng thử lại.', 'error');
+        } catch {
+            addToast('Upload ảnh thất bại, vui lòng thử lại.', 'error');
+        } finally {
+            setIsUploading(false);
+            e.target.value = '';
         }
     };
 
-    return (
-        <div className="min-h-[calc(100vh-64px)] bg-gray-50 py-12">
-            <div className="max-w-3xl mx-auto px-4">
-                <h1 className="text-3xl font-bold mb-8 text-gray-900">Tạo bài viết mới</h1>
-                
-                {currentUser && !dataLoading && (
-                    <div className="mb-6 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
-                        <span className="font-bold text-gray-500 text-sm uppercase tracking-wider">Đăng với tư cách:</span>
-                        <span className="font-bold text-gray-900">{currentUser['Tên tài khoản']}</span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            {currentUserBadges.map(badge => <BadgePill key={badge.name} badge={badge} />)}
-                        </div>
-                    </div>
-                )}
+    const removeImage = (index: number) => {
+        setUploadedImages(prev => prev.filter((_, i) => i !== index));
+    };
 
-                <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
-                     {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3" role="alert">
-                            <Icon name="alert-circle" className="w-5 h-5 shrink-0" />
-                            <p className="font-bold text-sm">{error}</p>
-                        </div>
-                     )}
-                    
+    const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const items = Array.from(e.clipboardData.items);
+        const imageItems = items.filter(item => item.type.startsWith('image/'));
+        
+        if (imageItems.length === 0) return; // Paste text bình thường
+        
+        e.preventDefault();
+        
+        const remaining = 5 - uploadedImages.length;
+        if (remaining <= 0) {
+            addToast('Đã đạt giới hạn ảnh.', 'info');
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            for (const item of imageItems.slice(0, remaining)) {
+                const file = item.getAsFile();
+                if (!file) continue;
+                const url = await uploadForumImage(file, tempPostId);
+                setUploadedImages(prev => [...prev, url]);
+            }
+        } catch {
+            addToast('Upload ảnh thất bại.', 'error');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!currentUser) {
+            addToast('Vui lòng đăng nhập để đăng bài.', 'error');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const postData = {
+                Title: title,
+                Content: content,
+                Channel: channel,
+                AuthorEmail: currentUser.Email,
+                AuthorName: currentUser['Tên tài khoản'],
+                ImageURLs: uploadedImages.join(','),
+            };
+
+            const result = await addForumPost(postData);
+            if (result.success) {
+                addToast('Đăng bài thành công!', 'success');
+                router.push('/forum');
+            } else {
+                addToast(result.error || 'Đăng bài thất bại.', 'error');
+            }
+        } catch (error) {
+            addToast('Đã xảy ra lỗi.', 'error');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (!currentUser) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                    <h2 className="text-xl font-bold text-gray-900">Vui lòng đăng nhập</h2>
+                    <p className="text-gray-500 mt-2">Bạn cần đăng nhập để tạo bài viết mới.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50 py-12 px-4">
+            <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+                <h1 className="text-2xl font-bold text-gray-900 mb-6">Tạo bài viết mới</h1>
+                <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
-                        <label htmlFor="channel" className="block text-sm font-bold text-gray-700 mb-2">Chọn kênh</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Tiêu đề</label>
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                            placeholder="Nhập tiêu đề bài viết..."
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Chuyên mục</label>
                         <select
-                            id="channel"
                             value={channel}
-                            onChange={(e) => setChannel(e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors font-medium text-gray-900"
+                            onChange={e => setChannel(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white"
                         >
-                            {FORUM_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+                            {FORUM_CHANNELS.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
                         </select>
                     </div>
 
                     <div>
-                        <label htmlFor="title" className="block text-sm font-bold text-gray-700 mb-2">Tiêu đề</label>
-                        <input
-                            id="title"
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors font-medium text-gray-900"
-                            placeholder="Một tiêu đề hấp dẫn..."
-                            required
-                        />
-                    </div>
-                    
-                    <div>
-                        <label htmlFor="content" className="block text-sm font-bold text-gray-700 mb-2">Nội dung</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center justify-between">
+                            Nội dung
+                            <span className="font-normal text-xs text-gray-400 flex items-center gap-1">
+                                <Icon name="clipboard" className="w-3 h-3" />
+                                Có thể dán ảnh trực tiếp (Ctrl+V)
+                            </span>
+                        </label>
                         <textarea
-                            id="content"
                             value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            rows={12}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors font-medium text-gray-900 resize-y"
-                            placeholder="Viết nội dung của bạn ở đây... Bạn có thể sử dụng Markdown để định dạng."
+                            onChange={e => setContent(e.target.value)}
+                            onPaste={handlePaste}
+                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all min-h-[200px]"
+                            placeholder="Chia sẻ suy nghĩ của bạn..."
                             required
                         />
                     </div>
-                    
-                    <div className="flex justify-end gap-4 pt-4 border-t border-gray-100">
-                        <button 
-                            type="button" 
-                            onClick={() => router.push('/forum')}
-                            className="px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
-                        >
-                            Hủy
-                        </button>
-                        <button 
-                            type="submit" 
-                            disabled={isLoading}
-                            className="px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-400 shadow-sm flex items-center gap-2"
-                        >
-                            {isLoading ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></div>
-                                    Đang đăng...
-                                </>
-                            ) : 'Đăng bài'}
-                        </button>
+
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">
+                            Đính kèm ảnh
+                            <span className="ml-2 font-normal text-gray-400">({uploadedImages.length}/5)</span>
+                        </label>
+
+                        {uploadedImages.length > 0 && (
+                            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
+                                {uploadedImages.map((url, index) => (
+                                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border-2 border-gray-100 group bg-gray-50">
+                                        <Image src={convertGoogleDriveUrl(url)} alt={`Ảnh ${index + 1}`} fill className="object-cover" referrerPolicy="no-referrer" />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
+                                        <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 hover:scale-110">
+                                            <Icon name="x" className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                                {isUploading && (
+                                    <div className="aspect-square rounded-xl border-2 border-dashed border-blue-300 bg-blue-50 flex items-center justify-center">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-200 border-t-blue-500" />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {uploadedImages.length < 5 && (
+                            <label className={`relative flex items-center justify-center gap-3 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isUploading ? 'border-blue-300 bg-blue-50 pointer-events-none' : 'border-gray-200 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'}`}>
+                                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={handleImageSelect} disabled={isUploading} className="hidden" />
+                                {isUploading ? <><div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-300 border-t-blue-600" /><span className="text-sm font-medium text-blue-600">Đang tải lên...</span></> : <><Icon name="image" className="w-5 h-5 text-gray-400" /><span className="text-sm font-medium text-gray-500">Nhấn để thêm ảnh</span><span className="text-xs text-gray-400">JPG, PNG, GIF, WEBP · Tối đa 5 ảnh</span></>}
+                            </label>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end gap-3">
+                        <button type="button" onClick={() => router.back()} className="px-6 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors">Hủy</button>
+                        <button type="submit" disabled={isSubmitting || isUploading} className="px-6 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 transition-colors shadow-lg shadow-blue-200">{isSubmitting ? 'Đang đăng...' : 'Đăng bài'}</button>
                     </div>
                 </form>
             </div>

@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxr1-2UsW9SBH3DCX4HOfzbwAm4Lv7sG1ZPgM-_EbmAWkfw8ecaAxNmIUZ1WElQ5GK-/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwBDHYCUejd6qOOfYFBq_K3u51B_6JK0wWyoDlqtHw6RIdt6leEK4tEUgPl-bdMacd5/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -839,6 +839,7 @@ return rawPosts.map((p: any) => ({
     Timestamp: String(p.Timestamp || p.TimeStamp || '').trim(),
     Upvotes: String(p.Upvotes || '').trim(),
     UpvotedBy: String(p.UpvotedBy || '').trim(),
+    ImageURLs: String(p.ImageURLs || '').trim(),
 }));
 };
 
@@ -852,6 +853,7 @@ return rawComments.map((c: any) => ({
     AuthorEmail: String(c.AuthorEmail || '').trim(),
     AuthorName: String(c.AuthorName || '').trim(),
     Timestamp: String(c.Timestamp || c.TimeStamp || '').trim(),
+    ImageURLs: String(c.ImageURLs || '').trim(),
 }));
 };
 
@@ -1157,6 +1159,39 @@ oneAttemptOnly: boolean
     }
 };
 
+export async function uploadForumImage(
+  file: File,
+  tempPostId: string
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = async () => {
+      try {
+        const content = reader.result as string;
+        const base64 = content.includes(',') ? content.split(',')[1] : content;
+
+        // Use postToAppsScript to ensure Content-Type is text/plain (avoids CORS preflight)
+        const result = await postToAppsScript({
+            action: 'uploadForumImage',
+            imageBase64: base64,
+            mimeType: file.type,
+            fileName: file.name,
+            postId: tempPostId,
+        });
+
+        if (result.status === 'success') resolve(result.url);
+        else reject(new Error(result.message));
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    reader.onerror = () => reject(new Error('Không thể đọc file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export const fetchUserQuiz = async (quizId: string): Promise<UserQuiz | null> => {
     try {
         const result = await postToAppsScript({
@@ -1371,19 +1406,14 @@ export async function uploadAvatar(
   const compressed = await compressImage(imageFile, 400, 0.8);
   const base64 = compressed.split(',')[1];
 
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    body: JSON.stringify({
+  const result = await postToAppsScript({
       action:      'uploadAvatar',
       email,
       imageBase64: base64,
       mimeType:    'image/jpeg',
       fileName:    `${email}_avatar.jpg`,
-    }),
   });
 
-  if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-  const result = await res.json();
   if (result.status !== 'success') throw new Error(result.message ?? 'Upload thất bại');
   return result.avatarUrl as string;
 }

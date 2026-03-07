@@ -65,6 +65,7 @@ export default function ForumPage() {
     const [selectedChannel, setSelectedChannel] = useState('Tất cả');
     const [sortBy, setSortBy] = useState<SortByType>('new');
     const [currentPage, setCurrentPage] = useState(1);
+    const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
 
     const { currentUser } = useAuth();
     const { addToast } = useToast();
@@ -95,6 +96,17 @@ export default function ForumPage() {
     useEffect(() => {
         setCurrentPage(1);
     }, [selectedChannel, sortBy]);
+
+    useEffect(() => {
+        if (!lightbox) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setLightbox(null);
+            if (e.key === 'ArrowRight') setLightbox(l => l && ({ ...l, index: (l.index + 1) % l.urls.length }));
+            if (e.key === 'ArrowLeft') setLightbox(l => l && ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length }));
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [lightbox]);
 
     const commentCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -408,6 +420,7 @@ export default function ForumPage() {
                                                                             fill
                                                                             className="object-cover"
                                                                             referrerPolicy="no-referrer"
+                                                                            priority
                                                                         />
                                                                     ) : (
                                                                         <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500">
@@ -426,6 +439,41 @@ export default function ForumPage() {
                                                                 <h3 className="text-lg font-bold text-gray-800 mb-2 line-clamp-2 group-hover:text-emerald-600 transition-colors">{post.Title}</h3>
                                                                 <p className="text-sm text-gray-600 line-clamp-2 mb-3">{post.Content}</p>
                                                             </Link>
+
+                                                            {/* Ảnh tách ra khỏi Link để tránh click nhầm */}
+                                                            {post.ImageURLs && post.ImageURLs.trim() && (() => {
+                                                                const imgs = post.ImageURLs.split(',').filter(Boolean);
+                                                                return (
+                                                                    <div className={`mt-2 mb-3 grid gap-1.5 ${imgs.length === 1 ? 'grid-cols-1' : imgs.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                                                                        {imgs.slice(0, 3).map((url, i) => (
+                                                                            <button
+                                                                                key={i}
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    setLightbox({ urls: imgs, index: i });
+                                                                                }}
+                                                                                className={`relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50 hover:opacity-90 hover:scale-[1.02] transition-all duration-200 cursor-zoom-in ${imgs.length === 1 ? 'h-48' : 'h-28'}`}
+                                                                            >
+                                                                                <Image
+                                                                                    src={convertGoogleDriveUrl(url.trim())}
+                                                                                    alt=""
+                                                                                    fill
+                                                                                    className="object-cover"
+                                                                                    referrerPolicy="no-referrer"
+                                                                                    priority={i === 0}
+                                                                                />
+                                                                                {i === 2 && imgs.length > 3 && (
+                                                                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                                                                        <span className="text-white font-bold text-xl">+{imgs.length - 3}</span>
+                                                                                    </div>
+                                                                                )}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                             
                                                             <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
                                                                 <span className="px-2 py-1 rounded-lg bg-gray-100 text-gray-600">
@@ -497,6 +545,64 @@ export default function ForumPage() {
                     </main>
                 </div>
             </div>
+
+            {/* Lightbox */}
+            {lightbox && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setLightbox(null)}
+                >
+                    <button
+                        className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                        onClick={() => setLightbox(null)}
+                    >
+                        <Icon name="x" className="w-6 h-6" />
+                    </button>
+
+                    {lightbox.urls.length > 1 && (
+                        <button
+                            className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setLightbox(l => l && ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length }));
+                            }}
+                        >
+                            <Icon name="chevron-left" className="w-8 h-8" />
+                        </button>
+                    )}
+
+                    <div
+                        className="relative max-w-5xl max-h-[85vh] w-full h-full"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <Image
+                            src={convertGoogleDriveUrl(lightbox.urls[lightbox.index].trim())}
+                            alt=""
+                            fill
+                            className="object-contain"
+                            referrerPolicy="no-referrer"
+                        />
+                    </div>
+
+                    {lightbox.urls.length > 1 && (
+                        <button
+                            className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setLightbox(l => l && ({ ...l, index: (l.index + 1) % l.urls.length }));
+                            }}
+                        >
+                            <Icon name="chevron-right" className="w-8 h-8" />
+                        </button>
+                    )}
+
+                    {lightbox.urls.length > 1 && (
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/90 text-sm font-medium bg-black/60 px-4 py-2 rounded-full backdrop-blur-md">
+                            {lightbox.index + 1} / {lightbox.urls.length}
+                        </div>
+                    )}
+                </div>
+            )}
 
             <style jsx>{`
                 .custom-scrollbar::-webkit-scrollbar {

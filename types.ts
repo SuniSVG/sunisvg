@@ -99,6 +99,7 @@ export interface ForumPost {
   Timestamp: string;
   Upvotes: string;
   UpvotedBy: string;
+  ImageURLs?: string; 
 }
 
 export interface ForumComment {
