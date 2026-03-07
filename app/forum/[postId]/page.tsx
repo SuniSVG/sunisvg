@@ -298,6 +298,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
     
     const { currentUser } = useAuth();
     const router = useRouter();
+    const { addToast } = useToast();
 
     useEffect(() => {
         if (!lightbox) return;
