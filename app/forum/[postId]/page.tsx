@@ -204,7 +204,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
         const result = await addForumComment(commentData);
         if (result.success) {
             // Optimistically add comment to UI
-            const optimisticComment: ForumComment = {
+            const optimisticComment = {
                 ...commentData,
                 ID: `temp-${Date.now()}`,
                 Timestamp: new Date().toLocaleString('vi-VN', {
@@ -212,7 +212,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
                     hour: '2-digit', minute: '2-digit', second: '2-digit'
                 }),
                 ImageURLs: commentImages.join(','),
-            };
+            } as unknown as ForumComment;
             setComments(prev => [...prev, optimisticComment]);
             setNewComment('');
             setCommentImages([]);
