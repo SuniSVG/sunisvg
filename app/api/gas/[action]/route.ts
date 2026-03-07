@@ -6,9 +6,10 @@ import { GAS_ACTIONS, GASAction } from "@/lib/gasClient";
 // GET → query có cache
 export async function GET(
   req: NextRequest,
-  { params }: { params: { action: string } }
+  { params }: { params: Promise<{ action: string }> }
 ) {
-  const action = params.action as GASAction;
+  const { action: rawAction } = await params;
+  const action = rawAction as GASAction;
 
   if (!(action in GAS_ACTIONS)) {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
@@ -29,9 +30,10 @@ export async function GET(
 // POST → gasQuery tự lo invalidate qua INVALIDATE_MAP trong gasService.ts
 export async function POST(
   req: NextRequest,
-  { params }: { params: { action: string } }
+  { params }: { params: Promise<{ action: string }> }
 ) {
-  const action = params.action as GASAction;
+  const { action: rawAction } = await params;
+  const action = rawAction as GASAction;
 
   if (!(action in GAS_ACTIONS)) {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
