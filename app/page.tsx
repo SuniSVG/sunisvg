@@ -11,6 +11,7 @@ import { fetchCourses, purchasePremiumCategory, fetchPurchasedCategories } from 
 import type { Course } from '@/types';
 import Image from 'next/image';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
+import { useLiveStreams } from '@/hooks/useLiveStream';
 
 // ── Helpers for Radar Data (Shared logic) ──
 const normalizeKey = (key: string) =>
@@ -561,6 +562,45 @@ const CSS = `
   }
   .hm-view-all:hover { gap: .45rem; }
 
+  /* ── Live Stream Section ── */
+  .hm-live-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin-top: 2.5rem;
+    animation: hm-fadeUp .6s .3s ease both;
+  }
+  .hm-live-card {
+    background: #1a1a22;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+  .hm-live-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.25); }
+  .hm-live-thumb { aspect-ratio: 16/9; width: 100%; position: relative; }
+  .hm-live-badge {
+    position: absolute; top: 10px; left: 10px;
+    background: #ef4444; color: white;
+    font-size: 0.65rem; font-weight: 800;
+    padding: 3px 8px; border-radius: 6px;
+    display: flex; align-items: center; gap: 5px;
+    box-shadow: 0 2px 8px rgba(239,68,68,0.4);
+    animation: hm-pulse 1.5s infinite;
+  }
+  .hm-live-content { padding: 1rem; flex: 1; display: flex; flex-direction: column; }
+  .hm-live-title {
+    color: white; font-weight: 700; font-size: 0.95rem;
+    margin-bottom: 0.5rem; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .hm-live-channel { color: #9ca3af; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; }
+
   /* ── Keyframes ── */
   @keyframes hm-fadeUp {
     from { opacity: 0; transform: translateY(14px); }
@@ -581,6 +621,7 @@ export default function Home() {
   const [purchaseDates, setPurchaseDates] = useState<Record<string, string>>({});
   const [isPurchasing, setIsPurchasing] = useState<string | null>(null);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const { lives } = useLiveStreams();
 
   const [nearestTimeLeft, setNearestTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [thptTimeLeft, setThptTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -1127,6 +1168,38 @@ export default function Home() {
                 </div>
               </div>
             </>
+          )}
+
+          {/* ── Live Stream Section (Hiển thị cho cả user đã đăng nhập và chưa đăng nhập) ── */}
+          {lives.length > 0 && (
+            <div className="mt-12 border-t border-gray-200/60 pt-8">
+              <div className="hm-section-title" style={{ marginBottom: '1rem' }}>
+                <span className="relative flex h-3 w-3 mr-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+                Đang phát trực tiếp
+              </div>
+              
+              <div className="hm-live-grid">
+                {lives.map((live) => (
+                  <Link 
+                    key={live.videoId} 
+                    href={`/co-learning/${live.videoId}`} // Link đến trang xem video
+                    className="hm-live-card"
+                  >
+                    <div className="hm-live-thumb">
+                      <Image src={live.thumbnail} alt={live.title} fill className="object-cover" unoptimized />
+                      <div className="hm-live-badge"><span className="w-1.5 h-1.5 bg-white rounded-full"></span> LIVE</div>
+                    </div>
+                    <div className="hm-live-content">
+                      <h3 className="hm-live-title" title={live.title}>{live.title}</h3>
+                      <div className="hm-live-channel"><Icon name="youtube" className="w-3.5 h-3.5" /> {live.channelTitle}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>

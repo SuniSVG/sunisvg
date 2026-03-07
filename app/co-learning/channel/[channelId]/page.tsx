@@ -11,7 +11,10 @@ import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { Icon } from '@/components/shared/Icon';
 
-const API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY || '';
+const API_KEYS = [
+    process.env.NEXT_PUBLIC_YOUTUBE_API_KEY,
+    'AIzaSyCB1eISVtVGKYDa1vZQV1l8Z2PAuyQy854' // Key dự phòng 2
+].filter(Boolean) as string[];
 
 interface VideoItem {
     id: string;
@@ -30,6 +33,8 @@ interface ChannelDetails {
     avatarUrl: string;
     bannerUrl?: string;
     subscriberCount?: string;
+    uploadsPlaylistId?: string; // ID danh sách phát chứa tất cả video upload
+    videoCount?: string;
 }
 
 // Logic phân loại (giống trang chủ)
@@ -44,6 +49,25 @@ const categorizeVideo = (title: string): string => {
     return 'Khác';
 };
 
+// Hàm xóa dấu tiếng Việt để tìm kiếm tối ưu
+const removeVietnameseTones = (str: string) => {
+    str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+    str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+    str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+    str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+    str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+    str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+    str = str.replace(/đ/g, "d");
+    str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
+    str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
+    str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
+    str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
+    str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
+    str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
+    str = str.replace(/Đ/g, "D");
+    return str;
+};
+
 export default function ChannelDetailPage() {
     const params = useParams();
     const channelId = params.channelId as string;
@@ -53,16 +77,23 @@ export default function ChannelDetailPage() {
     const [loading, setLoading] = useState(true);
     const [activeTopic, setActiveTopic] = useState('Tất cả');
     const [searchQuery, setSearchQuery] = useState('');
+    
+    // States cho phân trang Server-side
+    const ITEMS_PER_PAGE = 24;
+    const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+    const [prevPageToken, setPrevPageToken] = useState<string | null>(null);
+    const [pageTokens, setPageTokens] = useState<string[]>(['']); // Lưu lịch sử token để quay lại: ['token_trang_1', 'token_trang_2', ...]
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalVideos, setTotalVideos] = useState(0);
 
+    // 1. Lấy thông tin kênh (chạy 1 lần)
     useEffect(() => {
         if (!channelId) return;
-
         const fetchData = async () => {
-            setLoading(true);
+            const apiKey = API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
             try {
-                // 1. Lấy thông tin chi tiết kênh (bao gồm Banner)
                 const channelRes = await fetch(
-                    `https://www.googleapis.com/youtube/v3/channels?key=${API_KEY}&part=snippet,brandingSettings,statistics&id=${channelId}`
+                    `https://www.googleapis.com/youtube/v3/channels?key=${apiKey}&part=snippet,brandingSettings,statistics,contentDetails&id=${channelId}`
                 );
                 const channelData = await channelRes.json();
                 if (channelData.items?.[0]) {
@@ -73,36 +104,107 @@ export default function ChannelDetailPage() {
                         description: item.snippet.description,
                         avatarUrl: item.snippet.thumbnails.medium?.url,
                         bannerUrl: item.brandingSettings?.image?.bannerExternalUrl,
-                        subscriberCount: item.statistics?.subscriberCount
+                        subscriberCount: item.statistics?.subscriberCount,
+                        uploadsPlaylistId: item.contentDetails?.relatedPlaylists?.uploads, // ID playlist chứa toàn bộ video
+                        videoCount: item.statistics?.videoCount
                     });
+                    setTotalVideos(parseInt(item.statistics?.videoCount || '0'));
                 }
-
-                // 2. Lấy video của kênh
-                const videoRes = await fetch(
-                    `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}&channelId=${channelId}&part=snippet,id&order=date&maxResults=24&type=video`
-                );
-                const videoData = await videoRes.json();
-                
-                const loadedVideos = (videoData.items || []).map((item: any) => ({
-                    id: item.id.videoId,
-                    title: item.snippet.title,
-                    thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url,
-                    channelId: item.snippet.channelId,
-                    channelTitle: item.snippet.channelTitle,
-                    publishedAt: new Date(item.snippet.publishedAt).toLocaleDateString('vi-VN'),
-                    category: categorizeVideo(item.snippet.title)
-                }));
-                setVideos(loadedVideos);
-
             } catch (error) {
                 console.error("Error fetching channel data:", error);
+            }
+        };
+        fetchData();
+    }, [channelId]);
+
+    // 2. Lấy video (chạy khi đổi trang hoặc đổi search)
+    useEffect(() => {
+        if (!channel) return;
+
+        const fetchVideos = async () => {
+            setLoading(true);
+            const apiKey = API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
+            try {
+                let url = '';
+                const token = pageTokens[currentPage - 1] || ''; // Lấy token tương ứng với trang hiện tại
+
+                // Nếu có tìm kiếm: Dùng endpoint Search (tốn quota hơn)
+                if (searchQuery.trim()) {
+                    url = `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelId}&part=snippet,id&order=date&maxResults=${ITEMS_PER_PAGE}&type=video&q=${encodeURIComponent(searchQuery)}`;
+                } 
+                // Nếu không tìm kiếm: Dùng endpoint PlaylistItems (tối ưu quota, lấy từ danh sách uploads)
+                else if (channel.uploadsPlaylistId) {
+                    url = `https://www.googleapis.com/youtube/v3/playlistItems?key=${apiKey}&playlistId=${channel.uploadsPlaylistId}&part=snippet,id&maxResults=${ITEMS_PER_PAGE}`;
+                }
+
+                if (token) {
+                    url += `&pageToken=${token}`;
+                }
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                // Cập nhật token cho trang tiếp theo
+                setNextPageToken(data.nextPageToken || null);
+                setPrevPageToken(data.prevPageToken || null);
+
+                // Chuẩn hóa dữ liệu (vì cấu trúc trả về của Search và PlaylistItems hơi khác nhau)
+                const loadedVideos = (data.items || []).map((item: any) => {
+                    const snippet = item.snippet;
+                    // Search trả về id.videoId, PlaylistItems trả về snippet.resourceId.videoId
+                    const videoId = item.id?.videoId || snippet.resourceId?.videoId;
+                    
+                    return {
+                        id: videoId,
+                        title: snippet.title,
+                        thumbnail: snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url,
+                        channelId: snippet.channelId,
+                        channelTitle: snippet.channelTitle,
+                        publishedAt: new Date(snippet.publishedAt).toLocaleDateString('vi-VN'),
+                        category: categorizeVideo(snippet.title)
+                    };
+                });
+
+                setVideos(loadedVideos);
+                
+                // Nếu đang search, cập nhật lại tổng số (ước lượng) để phân trang
+                if (searchQuery.trim() && data.pageInfo) {
+                    // Search API không trả về chính xác totalResults lớn, nhưng dùng tạm để hiện UI
+                    setTotalVideos(data.pageInfo.totalResults);
+                }
+
+            } catch (error) {
+                console.error("Error fetching videos:", error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchData();
-    }, [channelId]);
+        fetchVideos();
+    }, [channel, currentPage, searchQuery, pageTokens]); // Bỏ channelId ra vì channel đã bao gồm
+
+    // Xử lý chuyển trang
+    const handleNextPage = () => {
+        if (nextPageToken) {
+            // Lưu token mới vào mảng lịch sử nếu chưa có
+            if (pageTokens.length <= currentPage) {
+                setPageTokens([...pageTokens, nextPageToken]);
+            }
+            setCurrentPage(p => p + 1);
+        }
+    };
+
+    const handlePrevPage = () => {
+        if (currentPage > 1) {
+            setCurrentPage(p => p - 1);
+        }
+    };
+
+    // Reset về trang 1 khi tìm kiếm
+    useEffect(() => {
+        setCurrentPage(1);
+        setPageTokens(['']); // Reset token history
+    }, [searchQuery]);
 
     const topics = useMemo(() => {
         const cats = new Set(videos.map(v => v.category));
@@ -110,13 +212,16 @@ export default function ChannelDetailPage() {
         return ['Tất cả', ...sortedCats];
     }, [videos]);
 
+    // Lọc Client-side (chỉ lọc Topic, Search đã xử lý Server-side)
     const filteredVideos = useMemo(() => {
         return videos.filter(v => {
             const matchTopic = activeTopic === 'Tất cả' || v.category === activeTopic;
-            const matchSearch = v.title.toLowerCase().includes(searchQuery.toLowerCase());
-            return matchTopic && matchSearch;
+            // Search đã được gọi API rồi, nhưng lọc thêm ở đây để highlight hoặc xử lý topic
+            return matchTopic;
         });
-    }, [videos, activeTopic, searchQuery]);
+    }, [videos, activeTopic]);
+
+    const totalPages = Math.ceil(totalVideos / ITEMS_PER_PAGE);
 
     if (loading) {
         return (
@@ -195,8 +300,9 @@ export default function ChannelDetailPage() {
                         <input 
                             type="text" 
                             placeholder="Tìm trong kênh..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            // Dùng onBlur hoặc debounce để tránh gọi API liên tục khi gõ
+                            onKeyDown={(e) => e.key === 'Enter' && setSearchQuery(e.currentTarget.value)}
+                            onBlur={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-9 pr-4 py-2 rounded-full border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                         />
                         <Icon name="search" className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -204,41 +310,77 @@ export default function ChannelDetailPage() {
                 </div>
 
                 {/* Danh sách Video */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredVideos.map((video) => (
-                        <Link 
-                            key={video.id} 
-                            href={`/co-learning/${video.id}`}
-                            className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 flex flex-col"
+                {loading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[...Array(6)].map((_, i) => (
+                            <div key={i} className="bg-white rounded-xl p-4 h-64 animate-pulse">
+                                <div className="bg-gray-200 h-40 rounded-lg mb-4"></div>
+                                <div className="bg-gray-200 h-4 w-3/4 rounded mb-2"></div>
+                                <div className="bg-gray-200 h-3 w-1/2 rounded"></div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredVideos.map((video) => (
+                            <Link 
+                                key={video.id} 
+                                href={`/co-learning/${video.id}`}
+                                className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 flex flex-col"
+                            >
+                                <div className="relative aspect-video overflow-hidden bg-gray-100">
+                                    <Image
+                                        src={video.thumbnail}
+                                        alt={video.title}
+                                        fill
+                                        className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                        unoptimized
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                        <Icon name="play-circle" className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                    </div>
+                                    <div className="absolute top-2 left-2">
+                                        <span className="px-2 py-1 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold rounded">
+                                            {video.category}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-4 flex-1 flex flex-col">
+                                    <h3 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2 group-hover:text-green-600 transition-colors">
+                                        {video.title}
+                                    </h3>
+                                    <div className="mt-auto text-xs text-gray-500">
+                                        {video.publishedAt}
+                                    </div>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                )}
+
+                {/* Pagination Controls */}
+                {!loading && totalVideos > ITEMS_PER_PAGE && (
+                    <div className="mt-10 flex justify-center items-center gap-4">
+                        <button
+                            onClick={handlePrevPage}
+                            disabled={currentPage === 1}
+                            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                            <div className="relative aspect-video overflow-hidden bg-gray-100">
-                                <Image
-                                    src={video.thumbnail}
-                                    alt={video.title}
-                                    fill
-                                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                    unoptimized
-                                />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                    <Icon name="play-circle" className="w-12 h-12 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                                </div>
-                                <div className="absolute top-2 left-2">
-                                    <span className="px-2 py-1 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold rounded">
-                                        {video.category}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="p-4 flex-1 flex flex-col">
-                                <h3 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2 group-hover:text-green-600 transition-colors">
-                                    {video.title}
-                                </h3>
-                                <div className="mt-auto text-xs text-gray-500">
-                                    {video.publishedAt}
-                                </div>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
+                            Trước
+                        </button>
+                        <span className="text-sm text-gray-600 font-medium">
+                            Trang <span className="text-gray-900 font-bold">{currentPage}</span> 
+                            {totalPages > 0 && ` / ${totalPages}`}
+                        </span>
+                        <button
+                            onClick={handleNextPage}
+                            disabled={!nextPageToken && currentPage >= totalPages}
+                            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Sau
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

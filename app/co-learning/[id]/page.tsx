@@ -10,7 +10,10 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Icon } from '@/components/shared/Icon';
 
-const API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY || ''; // API Key từ biến môi trường
+const API_KEYS = [
+    process.env.NEXT_PUBLIC_YOUTUBE_API_KEY,
+    'AIzaSyCB1eISVtVGKYDa1vZQV1l8Z2PAuyQy854' // Key dự phòng 2
+].filter(Boolean) as string[];
 
 export default function VideoPlayerPage() {
     // Lấy ID video từ URL (ví dụ: /videos/dQw4w9WgXcQ -> id = dQw4w9WgXcQ)
@@ -21,9 +24,10 @@ export default function VideoPlayerPage() {
     // Lấy thông tin chi tiết video (Title, Channel Name)
     React.useEffect(() => {
         if (!videoId) return;
+        const apiKey = API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
         const fetchDetails = async () => {
             try {
-                const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${API_KEY}`);
+                const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`);
                 const data = await res.json();
                 if (data.items && data.items.length > 0) {
                     setVideoInfo(data.items[0].snippet);
@@ -48,7 +52,7 @@ export default function VideoPlayerPage() {
                         Quay lại thư viện
                     </Link>
                     <div className="text-white font-bold text-lg hidden sm:block">
-                        SuniSVG Learning
+                        SuniSVG Co - Learning
                     </div>
                 </div>
             </div>
@@ -90,6 +94,15 @@ export default function VideoPlayerPage() {
                             </div>
                         </div>
                         
+                        {/* Video Description */}
+                        {videoInfo?.description && (
+                            <div className="mt-6 bg-gray-800/30 rounded-xl p-4 border border-gray-800">
+                                <div className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed font-sans">
+                                    {videoInfo.description}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="mt-6 p-4 bg-gray-900 rounded-xl border border-gray-800 text-sm text-gray-400">
                             <p>
                                 💡 <strong>Mẹo:</strong> Bạn có thể nhấn phím <code>F</code> để xem toàn màn hình hoặc phím <code>Space</code> để tạm dừng video.

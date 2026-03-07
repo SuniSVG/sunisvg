@@ -1,4 +1,5 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
+import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
 export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxtbZ4cjQbvCb9cpffo8LQtB-WKqPAr8rDgUAgSpK5ZELFXgLkuWb7QcXLNy_BZzu-0/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
@@ -46,41 +47,15 @@ function decompress(data: string) {
   } catch { return null; }
 }
 
-// --- LOCAL STORAGE CACHE ---
-function setLocalCache(key: string, data: any) {
-  const cacheKey = `edifyx_cache_${key}`;
-  const compressedData = compress(data);
-
-  // Thêm bước kiểm tra kích thước trước khi lưu để tránh lỗi
-  if (compressedData.length > MAX_LOCAL_CACHE) {
-    console.warn(`Data for ${key} is too large for local cache (${(compressedData.length / 1024).toFixed(1)}KB). Skipping.`);
-  }
-
-  try {
-    localStorage.setItem(cacheKey, compressedData);
-  } catch (e) {
-    console.warn('LocalStorage full, clearing old cache...', e);
-    
-    const keysToDelete: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('edifyx_cache_')) keysToDelete.push(k);
-    }
-    keysToDelete.forEach(k => localStorage.removeItem(k));
-    try {
-      localStorage.setItem(cacheKey, compressedData);
-    } catch {
-      console.warn(`Still full after clearing. Skipping local cache for: ${key}`);
-    }
-  }
+// --- SERVER CACHE REPLACEMENT ---
+async function setLocalCache(key: string, data: any) {
+  // Lưu cache 24h (86400s) để hỗ trợ SWR (Stale-While-Revalidate)
+  // Dữ liệu cũ vẫn được trả về trong khi fetch mới chạy ngầm
+  await serverCache.set(`edifyx_cache_${key}`, data, 86400);
 }
 
-function getLocalCache<T>(key: string): CacheEntry<T> | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const item = localStorage.getItem(`edifyx_cache_${key}`);
-    return item ? decompress(item) : null;
-  } catch { return null; }
+async function getLocalCache<T>(key: string): Promise<CacheEntry<T> | null> {
+  return await serverCache.get<CacheEntry<T>>(`edifyx_cache_${key}`);
 }
 
 // --- REQUEST DEDUPE ---
@@ -143,7 +118,7 @@ const fetchDataFromAppsScript = async <T>(
   let cached = getMemoryCache<T[]>(cacheKey);
 
   if (!cached && !ignoreCache && !skipLocalCache) {  // ← thêm điều kiện
-    cached = getLocalCache<T[]>(cacheKey);
+    cached = await getLocalCache<T[]>(cacheKey);
     if (cached) setMemoryCache(cacheKey, cached);
   }
 
@@ -168,7 +143,7 @@ const fetchDataFromAppsScript = async <T>(
   if (result.status === 'success' && Array.isArray(result.data)) {
     const entry = { data: result.data, timestamp: Date.now() };
     setMemoryCache(cacheKey, entry);
-    if (!skipLocalCache) setLocalCache(cacheKey, entry);  // ← thêm điều kiện
+    if (!skipLocalCache) await setLocalCache(cacheKey, entry);  // ← thêm điều kiện
     return result.data as T[];
   }
   throw new Error(result.message || `Failed to fetch sheet: ${sheetName}`);
@@ -192,17 +167,7 @@ export async function fetchQuestionsPage(offset: number, limit: number, subject?
 
 // --- CACHE CLEANUP ---
 export function clearExpiredCache() {
-  if (typeof window === 'undefined') return;
-  Object.keys(localStorage).forEach(key => {
-    if (!key.startsWith('edifyx_cache_')) return;
-    try {
-      const item = localStorage.getItem(key);
-      if (item) {
-        const entry = decompress(item);
-        if (entry && Date.now() - entry.timestamp > CACHE_DURATION * 5) localStorage.removeItem(key);
-      }
-    } catch {}
-  });
+  // Server cache (Redis/Mem) tự động hết hạn (TTL), không cần cleanup thủ công
 }
 clearExpiredCache();
 

@@ -12,7 +12,10 @@ import { Icon } from '@/components/shared/Icon';
 
 // --- 1. CẤU HÌNH KÊNH & DỮ LIỆU ---
 
-const API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY || ''; // API Key từ biến môi trường
+const API_KEYS = [
+    process.env.NEXT_PUBLIC_YOUTUBE_API_KEY,
+    'AIzaSyCB1eISVtVGKYDa1vZQV1l8Z2PAuyQy854' // Key dự phòng 2
+].filter(Boolean) as string[];
 
 // --- CẤU HÌNH KÊNH THEO MÔN ---
 type SubjectType = 'Toán' | 'Lý' | 'Hóa' | 'Anh' | 'Sinh' | 'Khác';
@@ -99,6 +102,25 @@ const categorizeVideo = (title: string): string => {
     return 'Khác';
 };
 
+// Hàm xóa dấu tiếng Việt để tìm kiếm tối ưu
+const removeVietnameseTones = (str: string) => {
+    str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+    str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+    str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+    str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+    str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+    str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+    str = str.replace(/đ/g, "d");
+    str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
+    str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
+    str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
+    str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
+    str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
+    str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
+    str = str.replace(/Đ/g, "D");
+    return str;
+};
+
 export default function VideoLibraryPage() {
     const [videos, setVideos] = useState<VideoItem[]>([]);
     const [channels, setChannels] = useState<ChannelInfo[]>([]);
@@ -109,6 +131,10 @@ export default function VideoLibraryPage() {
     const [activeTopic, setActiveTopic] = useState('Tất cả');
     const [searchQuery, setSearchQuery] = useState('');
 
+    // States cho phân trang
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 24;
+
     // Lấy danh sách ID kênh thuộc môn đang chọn
     const currentSubjectChannelIds = useMemo(() => {
         return CHANNEL_LIST.filter(c => c.subject === activeSubject).map(c => c.id);
@@ -116,6 +142,7 @@ export default function VideoLibraryPage() {
 
     // Fetch dữ liệu khi đổi môn học
     useEffect(() => {
+
         const fetchData = async () => {
             if (currentSubjectChannelIds.length === 0) {
                 setVideos([]);
@@ -126,49 +153,38 @@ export default function VideoLibraryPage() {
 
             try {
                 setLoading(true);
-                
-                // 1. Lấy thông tin kênh (Avatar, Tên)
-                // API channels hỗ trợ lấy nhiều ID cùng lúc (tách bằng dấu phẩy)
-                const channelRes = await fetch(
-                    `https://www.googleapis.com/youtube/v3/channels?key=${API_KEY}&part=snippet&id=${currentSubjectChannelIds.join(',')}`
-                );
-                const channelData = await channelRes.json();
-                
-                const loadedChannels: ChannelInfo[] = (channelData.items || []).map((item: any) => ({
-                    id: item.id,
-                    title: item.snippet.title,
-                    avatarUrl: item.snippet.thumbnails.default?.url || item.snippet.thumbnails.medium?.url
-                }));
-                setChannels(loadedChannels);
 
-                // 2. Lấy video từ các kênh này
-                // Gọi API search cho từng kênh (để đảm bảo mỗi kênh đều có video hiển thị)
-                const videoPromises = currentSubjectChannelIds.map(async (channelId) => {
-                    const res = await fetch(
-                        `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}&channelId=${channelId}&part=snippet,id&order=date&maxResults=12&type=video`
-                    );
-                    const data = await res.json();
-                    return data.items || [];
+                // Gọi API route nội bộ — không lộ API key, có server cache
+                const res = await fetch("/api/youtube/videos", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ channelIds: currentSubjectChannelIds }),
                 });
 
-                const results = await Promise.all(videoPromises);
-                
-                // Gộp kết quả và map về đúng định dạng
-                const allVideos = results.flat().map((item: any) => ({
-                    id: item.id.videoId,
-                    title: item.snippet.title,
-                    thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url,
-                    channelId: item.snippet.channelId,
-                    channelTitle: item.snippet.channelTitle,
-                    publishedAt: new Date(item.snippet.publishedAt).toLocaleDateString('vi-VN'),
-                    category: categorizeVideo(item.snippet.title)
-                }));
+                if (!res.ok) {
+                    console.error("Lỗi tải video:", await res.text());
+                    return;
+                }
 
-                // Sắp xếp video mới nhất lên đầu
-                allVideos.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+                const data = await res.json();
 
-                setVideos(allVideos);
-                setActiveTopic('Tất cả'); // Reset topic khi đổi môn
+                // Channels
+                setChannels(data.channels || []);
+
+                // Videos — sort mới nhất + categorize ở client
+                const videos = (data.videos || [])
+                    .map((v: any) => ({
+                        ...v,
+                        publishedAt: new Date(v.publishedAt).toLocaleDateString("vi-VN"),
+                        category: categorizeVideo(v.title),
+                    }))
+                    .sort(
+                        (a: any, b: any) =>
+                            new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+                    );
+
+                setVideos(videos);
+                setActiveTopic("Tất cả");
             } catch (error) {
                 console.error("Lỗi khi tải dữ liệu YouTube:", error);
             } finally {
@@ -196,10 +212,27 @@ export default function VideoLibraryPage() {
     const filteredVideos = useMemo(() => {
         return videos.filter(v => {
             const matchTopic = activeTopic === 'Tất cả' || v.category === activeTopic;
-            const matchSearch = v.title.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            // Tìm kiếm nâng cao: Bỏ dấu, lowercase
+            const normalizedTitle = removeVietnameseTones(v.title.toLowerCase());
+            const normalizedQuery = removeVietnameseTones(searchQuery.toLowerCase().trim());
+            const matchSearch = normalizedTitle.includes(normalizedQuery);
+            
             return matchTopic && matchSearch;
         });
     }, [videos, activeTopic, searchQuery]);
+
+    // Reset về trang 1 khi thay đổi bộ lọc
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeSubject, activeTopic, searchQuery]);
+
+    // Tính toán dữ liệu cho trang hiện tại
+    const totalPages = Math.ceil(filteredVideos.length / ITEMS_PER_PAGE);
+    const paginatedVideos = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredVideos.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredVideos, currentPage, ITEMS_PER_PAGE]);
 
     const subjects: SubjectType[] = ['Toán', 'Lý', 'Hóa', 'Anh', 'Sinh'];
 
@@ -318,7 +351,7 @@ export default function VideoLibraryPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {filteredVideos.map((video) => (
+                        {paginatedVideos.map((video) => (
                             <Link 
                                 key={video.id} 
                                 href={`/co-learning/${video.id}`} // Link đến trang player nội bộ
@@ -362,6 +395,29 @@ export default function VideoLibraryPage() {
                                 </div>
                             </Link>
                         ))}
+                    </div>
+                )}
+
+                {/* 5. Pagination Controls */}
+                {!loading && filteredVideos.length > ITEMS_PER_PAGE && (
+                    <div className="mt-12 flex justify-center items-center gap-4">
+                        <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Trước
+                        </button>
+                        <span className="text-sm text-gray-600 font-medium">
+                            Trang <span className="text-gray-900 font-bold">{currentPage}</span> / {totalPages}
+                        </span>
+                        <button
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Sau
+                        </button>
                     </div>
                 )}
 
