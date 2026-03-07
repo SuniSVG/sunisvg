@@ -458,8 +458,8 @@ console.log('💬 commentData:', commentData);
                                             <div className="text-gray-700 whitespace-pre-wrap leading-relaxed"><MathRenderer text={comment.Content} /></div>
                                             
                                             {/* Hiển thị ảnh trong comment */}
-{comment.ImageURLs && comment.ImageURLs.trim() && (() => {
-    const imgs = comment.ImageURLs!.split(',').filter(Boolean);
+{(comment as any).ImageURLs && (comment as any).ImageURLs.trim() && (() => {
+    const imgs = ((comment as any).ImageURLs as string).split(',').filter(Boolean);
     return (
         <div className={`mt-2 grid gap-1 ${imgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {imgs.map((url, i) => (

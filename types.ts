@@ -110,6 +110,7 @@ export interface ForumComment {
   AuthorEmail: string;
   AuthorName: string;
   Timestamp: string;
+  ImageURLs?: string;
 }
 
 export interface CustomQuizQuestion {
