@@ -227,8 +227,13 @@ export function RightSidebar() {
       });
       if (response.ok) {
         const data = await response.json();
-        setLivePosts(data);
-        localStorage.setItem('edifyx_live_posts_cache', JSON.stringify(data)); // Cache live posts
+        const cleanedData = data.map((p: any) => ({
+          ...p,
+          Title: String(p.Title || '').replace(/^\\\|\//, ''),
+          Content: String(p.Content || '').replace(/^\\\|\//, '')
+        }));
+        setLivePosts(cleanedData);
+        localStorage.setItem('edifyx_live_posts_cache', JSON.stringify(cleanedData)); // Cache live posts
         if (shouldScroll) {
           setTimeout(scrollToBottom, 100);
         }

@@ -828,8 +828,8 @@ export const fetchForumPosts = async (ignoreCache: boolean = false): Promise<For
 const rawPosts = await fetchDataFromAppsScript<any>('Forum_Posts', ignoreCache);
 return rawPosts.map((p: any) => ({
     ID: String(p.ID || '').trim(),
-    Title: String(p.Title || '').trim(),
-    Content: String(p.Content || '').trim(),
+    Title: String(p.Title || '').trim().replace(/^\\\|\//, ''),
+    Content: String(p.Content || '').trim().replace(/^\\\|\//, ''),
     AuthorEmail: String(p.AuthorEmail || '').trim(),
     AuthorName: String(p.AuthorName || '').trim(),
     Channel: String(p.Channel || '').trim(),
@@ -846,7 +846,7 @@ return rawComments.map((c: any) => ({
     ID: String(c.ID || '').trim(),
     PostID: String(c.PostID || '').trim(),
     ParentID: String(c.ParentID || '').trim(),
-    Content: String(c.Content || '').trim(),
+    Content: String(c.Content || '').trim().replace(/^\\\|\//, ''),
     AuthorEmail: String(c.AuthorEmail || '').trim(),
     AuthorName: String(c.AuthorName || '').trim(),
     Timestamp: String(c.Timestamp || c.TimeStamp || '').trim(),
@@ -928,7 +928,9 @@ export const addForumPost = async (postData: Omit<ForumPost, 'ID' | 'Timestamp' 
     try {
         const result = await postToAppsScript({
             action: 'addForumPost',
-            ...postData
+            ...postData,
+            Title: `\\|/${postData.Title}`,
+            Content: `\\|/${postData.Content}`
         });
         return result.status === 'success' ? { success: true } : { success: false, error: result.message };
     } catch (error: any) {
@@ -940,7 +942,8 @@ export const addForumComment = async (commentData: Omit<ForumComment, 'ID' | 'Ti
     try {
         const result = await postToAppsScript({
             action: 'addForumComment',
-            ...commentData
+            ...commentData,
+            Content: `\\|/${commentData.Content}`
         });
         return result.status === 'success' ? { success: true } : { success: false, error: result.message };
     } catch (error: any) {

@@ -135,10 +135,11 @@ interface CommentInputProps {
     onCancel?: () => void;
     placeholder?: string;
     autoFocus?: boolean;
+    initialContent?: string;
 }
 
-function CommentInput({ postId, parentId, onSuccess, onCancel, placeholder, autoFocus }: CommentInputProps) {
-    const [content, setContent] = useState('');
+function CommentInput({ postId, parentId, onSuccess, onCancel, placeholder, autoFocus, initialContent = '' }: CommentInputProps) {
+    const [content, setContent] = useState(initialContent);
     const [images, setImages] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -328,7 +329,7 @@ function CommentItem({ comment, allComments, accounts, postId, onReplySuccess, s
                     </div>
                     {isReplying && (
                         <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <CommentInput postId={postId} parentId={comment.ID} onSuccess={(newC) => { onReplySuccess(newC); setIsReplying(false); }} onCancel={() => setIsReplying(false)} autoFocus />
+                            <CommentInput postId={postId} parentId={comment.ID} onSuccess={(newC) => { onReplySuccess(newC); setIsReplying(false); }} onCancel={() => setIsReplying(false)} autoFocus initialContent={`@${displayName} `} />
                         </div>
                     )}
                 </div>
