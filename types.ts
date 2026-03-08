@@ -157,6 +157,7 @@ export interface Classroom {
   JoinCode: string;
   memberCount?: number;
   quizCount?: number;
+  Public?: string;
 }
 
 export interface ClassMember {

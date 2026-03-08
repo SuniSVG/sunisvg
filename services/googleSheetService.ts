@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzkX1Cvfli2oht62aFKeLuMjvrLVWbrwB6CLbPOp_ekjqjzcwQEUDBh9LhAOGq22I/exec'; // ⚠️ HÃY THAY URL MỚI VỪA DEPLOY VÀO ĐÂY
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOeKNCHmOkZX7GLbBMd_bAX78kZuHukPNWmEtwYFokib1WJkpFwdMjZk3crsmcmcY/exec';
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -244,7 +244,66 @@ export function invalidateAccountCache(email: string) {
 }
 
 
+export interface ClassDocument {
+    DocumentID: string;
+    ClassID: string;
+    Title: string;
+    Description: string;
+    AuthorEmail: string;
+    Timestamp: string;
+    DocumentURL: string;
+    DueDate: string;
+}
+
 // --- Classroom Services ---
+export const getPublicClasses = async (): Promise<(Classroom & { JoinCode: string })[]> => {
+  try {
+    // Tải song song cả 3 sheet để tối ưu tốc độ
+    const [rawClasses, classMembers, classQuizzes] = await Promise.all([
+      fetchDataFromAppsScript<any>('Classrooms'),
+      fetchDataFromAppsScript<any>('ClassMembers'),
+      fetchDataFromAppsScript<any>('ClassQuizzes'),
+    ]);
+
+    // Lọc ra các lớp công khai
+    const publicClasses = rawClasses.filter((c: any) => {
+      const p = String(c['Public'] || '').trim().toLowerCase();
+      return p === 'yes' || p === 'true' || p === '1';
+    });
+
+    // Đếm trước số lượng thành viên cho mỗi lớp để tối ưu
+    const memberCounts = classMembers.reduce((acc, member) => {
+      const classId = String(member.ClassID || '').trim();
+      if (classId) {
+        acc[classId] = (acc[classId] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Đếm trước số lượng bài tập cho mỗi lớp
+    const quizCounts = classQuizzes.reduce((acc, quiz) => {
+      const classId = String(quiz.ClassID || '').trim();
+      if (classId) {
+        acc[classId] = (acc[classId] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Map dữ liệu lớp học với số lượng đã đếm
+    return publicClasses.map((c: any) => {
+      const classId = String(c['ClassID'] || '').trim();
+      return {
+        ...c, // Giữ lại các trường gốc từ sheet Classrooms
+        memberCount: memberCounts[classId] || 0, // Ghi đè/thêm số lượng thành viên
+        quizCount: quizCounts[classId] || 0, // Ghi đè/thêm số lượng bài tập
+      };
+    });
+  } catch (error) {
+    console.error('Failed to fetch public classes:', error);
+    return [];
+  }
+};
+
 export const createClass = async (classData: { className: string; subject: string; description: string; }, creatorEmail: string): Promise<{ success: boolean; error?: string; classId?: string; joinCode?: string }> => {
     try {
         const result = await postToAppsScript({
@@ -338,6 +397,27 @@ export const getClassDetails = async (classId: string): Promise<{ info: Classroo
     }
 };
 
+export const getClassDocuments = async (classId: string): Promise<ClassDocument[]> => {
+    try {
+        const rawDocs = await fetchDataFromAppsScript<any>('ClassDocuments');
+        return rawDocs
+            .filter((d: any) => String(d.ClassID || '').trim() === classId)
+            .map((d: any) => ({
+                DocumentID: String(d.DocumentID || '').trim(),
+                ClassID: String(d.ClassID || '').trim(),
+                Title: String(d.Title || '').trim(),
+                Description: String(d.Description || '').trim(),
+                AuthorEmail: String(d.AuthorEmail || '').trim(),
+                Timestamp: String(d.Timestamp || '').trim(),
+                DocumentURL: String(d.DocumentURL || '').trim(),
+                DueDate: String(d.DueDate || '').trim(),
+            }));
+    } catch (error) {
+        console.error("Failed to fetch class documents:", error);
+        return [];
+    }
+};
+
 export const batchAddStudents = async (classId: string, names: string[]): Promise<{ success: boolean; error?: string; createdStudents?: NewStudentCredential[] }> => {
     try {
         const result = await postToAppsScript({
@@ -366,6 +446,43 @@ export const assignTestToClass = async (classId: string, quizId: string, dueDate
     } catch (error: any) {
         return { success: false, error: error.message };
     }
+};
+
+export const assignDocumentToClass = async (
+    classId: string,
+    file: File,
+    title: string,
+    description: string,
+    dueDate: string,
+    authorEmail: string
+): Promise<{ success: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            try {
+                const content = reader.result as string;
+                const base64 = content.split(',')[1];
+                const result = await postToAppsScript({
+                    action: 'assignDocumentToClass',
+                    classId,
+                    title,
+                    description,
+                    dueDate,
+                    authorEmail,
+                    fileInfo: {
+                        fileContent: base64,
+                        mimeType: file.type,
+                        fileName: file.name
+                    }
+                });
+                resolve({ success: result.status === 'success', error: result.message });
+            } catch (error: any) {
+                resolve({ success: false, error: error.message });
+            }
+        };
+        reader.onerror = () => resolve({ success: false, error: 'Lỗi khi đọc file.' });
+    });
 };
 
 export const getScheduleForUser = async (email: string): Promise<ScheduleEvent[]> => {
