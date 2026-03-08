@@ -258,11 +258,12 @@ export interface ClassDocument {
 // --- Classroom Services ---
 export const getPublicClasses = async (): Promise<(Classroom & { JoinCode: string })[]> => {
   try {
-    // Tải song song cả 3 sheet để tối ưu tốc độ
-    const [rawClasses, classMembers, classQuizzes] = await Promise.all([
-      fetchDataFromAppsScript<any>('Classrooms'),
+    // Tải song song các sheet để tối ưu tốc độ
+    const [rawClasses, classMembers, classQuizzes, classDocuments] = await Promise.all([
+      fetchDataFromAppsScript<any>('Classes'),
       fetchDataFromAppsScript<any>('ClassMembers'),
       fetchDataFromAppsScript<any>('ClassQuizzes'),
+      fetchDataFromAppsScript<any>('ClassDocuments'),
     ]);
 
     // Lọc ra các lớp công khai
@@ -289,13 +290,22 @@ export const getPublicClasses = async (): Promise<(Classroom & { JoinCode: strin
       return acc;
     }, {} as Record<string, number>);
 
+    // Đếm trước số lượng tài liệu cho mỗi lớp
+    const docCounts = classDocuments.reduce((acc: any, doc: any) => {
+      const classId = String(doc.ClassID || '').trim();
+      if (classId) {
+        acc[classId] = (acc[classId] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
     // Map dữ liệu lớp học với số lượng đã đếm
     return publicClasses.map((c: any) => {
       const classId = String(c['ClassID'] || '').trim();
       return {
         ...c, // Giữ lại các trường gốc từ sheet Classrooms
         memberCount: memberCounts[classId] || 0, // Ghi đè/thêm số lượng thành viên
-        quizCount: quizCounts[classId] || 0, // Ghi đè/thêm số lượng bài tập
+        quizCount: (quizCounts[classId] || 0) + (docCounts[classId] || 0), // Tổng số bài tập + tài liệu
       };
     });
   } catch (error) {

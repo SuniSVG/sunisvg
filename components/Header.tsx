@@ -39,8 +39,8 @@ export default function Header() {
             <Link href="/teachers" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Giáo viên
             </Link>
-            <Link href="/exams" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
-              Thi online
+            <Link href="/classroom" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
+              Nhóm học tập
             </Link>
             <Link href="/forum" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Diễn đàn
