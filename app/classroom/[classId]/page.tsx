@@ -466,19 +466,12 @@ const AssignmentList: React.FC<{ quizzes: AssignedQuiz[]; documents: ClassDocume
             {quizzes.length + documents.length} bài tập & tài liệu
           </div>
         </div>
-        <Link href={`/tests/my-tests?classIdToAssign=${classId}`} className="cd-assign-cta">
-          <PlusIcon />
-          Giao bài kiểm tra
-        </Link>
         <div style={{ display: 'flex', gap: '.75rem' }}>
           <button onClick={onOpenUpload} className="cd-assign-cta" style={{ background: 'white', color: '#16a34a', border: '1.5px solid #bbf7d0', boxShadow: 'none', cursor: 'pointer' }}>
             <UploadIcon />
             Giao tài liệu
           </button>
-          <Link href={`/tests/my-tests?classIdToAssign=${classId}`} className="cd-assign-cta">
-            <PlusIcon />
-            Giao bài kiểm tra
-          </Link>
+
         </div>
       </div>
     )}
