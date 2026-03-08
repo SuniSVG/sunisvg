@@ -130,14 +130,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return { success: false, error: 'Đã xảy ra lỗi với tài khoản của bạn. Vui lòng liên hệ quản trị viên.' };
         }
 
-        // DEBUG: In ra console để kiểm tra xem dữ liệu thực tế là gì (F12 -> Console)
-        console.log('Login Debug:', {
-            inputEmail: email,
-            inputPass: pass,
-            storedPass: storedPassword,
-            matchExact: storedPassword === pass,
-            matchTrim: storedPassword === pass.trim()
-        });
 
         // Check verification status first
         if (user['Đã xác minh'] !== 'Có') {
