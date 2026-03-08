@@ -73,6 +73,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
 
   // Tải bình luận và tài khoản khi component được mở
   useEffect(() => {
@@ -94,6 +95,17 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
     };
     loadComments();
   }, [post.ID]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null);
+      if (e.key === 'ArrowRight') setLightbox(l => l && ({ ...l, index: (l.index + 1) % l.urls.length }));
+      if (e.key === 'ArrowLeft') setLightbox(l => l && ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length }));
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lightbox]);
 
   // Hàm gửi bình luận mới
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -194,7 +206,11 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                 {images.length > 0 && (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-4">
                     {images.map((url, i) => (
-                      <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+                      <div 
+                        key={i} 
+                        onClick={() => setLightbox({ urls: images, index: i })}
+                        className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+                      >
                         <img 
                           src={convertGoogleDriveUrl(url.split('#')[0])} 
                           alt="" 
@@ -263,7 +279,11 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                           {cImages.length > 0 && (
                             <div className="mt-3 grid grid-cols-3 gap-2">
                               {cImages.map((url, i) => (
-                                <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 bg-white">
+                                <div 
+                                  key={i} 
+                                  onClick={() => setLightbox({ urls: cImages, index: i })}
+                                  className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 bg-white cursor-pointer hover:opacity-90 transition-opacity"
+                                >
                                   <img 
                                     src={convertGoogleDriveUrl(url.split('#')[0])} 
                                     alt="" 
@@ -313,6 +333,63 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
           </form>
         </div>
       </motion.div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+            className="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setLightbox(null)}
+        >
+            <button
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                onClick={() => setLightbox(null)}
+            >
+                <Icon name="x" className="w-6 h-6" />
+            </button>
+
+            {lightbox.urls.length > 1 && (
+                <button
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setLightbox(l => l && ({ ...l, index: (l.index - 1 + l.urls.length) % l.urls.length }));
+                    }}
+                >
+                    <Icon name="chevron-left" className="w-8 h-8" />
+                </button>
+            )}
+
+            <div
+                className="relative max-w-5xl max-h-[85vh] w-full h-full flex items-center justify-center"
+                onClick={e => e.stopPropagation()}
+            >
+                <img
+                    src={convertGoogleDriveUrl(lightbox.urls[lightbox.index].split('#')[0].trim())}
+                    alt=""
+                    className="max-w-full max-h-full object-contain"
+                    referrerPolicy="no-referrer"
+                />
+            </div>
+
+            {lightbox.urls.length > 1 && (
+                <button
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-50"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setLightbox(l => l && ({ ...l, index: (l.index + 1) % l.urls.length }));
+                    }}
+                >
+                    <Icon name="chevron-right" className="w-8 h-8" />
+                </button>
+            )}
+
+            {lightbox.urls.length > 1 && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/90 text-sm font-medium bg-black/60 px-4 py-2 rounded-full backdrop-blur-md">
+                    {lightbox.index + 1} / {lightbox.urls.length}
+                </div>
+            )}
+        </div>
+      )}
     </div>
   );
 }

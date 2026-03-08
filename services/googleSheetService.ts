@@ -1409,7 +1409,7 @@ export async function uploadAvatar(
   email: string,
   imageFile: File
 ): Promise<string> {
-  const compressed = await compressImage(imageFile, 400, 0.8);
+  const compressed = await compressImage(imageFile, 1024, 0.8);
   const base64 = compressed.split(',')[1];
 
   const result = await postToAppsScript({
@@ -1424,7 +1424,7 @@ export async function uploadAvatar(
   return result.avatarUrl as string;
 }
 
-function compressImage(file: File, maxSize = 400, quality = 0.8): Promise<string> {
+function compressImage(file: File, maxSize = 1024, quality = 0.8): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
