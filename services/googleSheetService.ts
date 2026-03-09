@@ -63,6 +63,88 @@ async function getLocalCache<T>(key: string): Promise<CacheEntry<T> | null> {
 // --- REQUEST DEDUPE ---
 const pendingRequests = new Map<string, Promise<any>>();
 
+// --- CORE REQUEST (GET) ---
+const getFromAppsScript = async (
+  action: string,
+  params: Record<string, any> = {},
+  retries = 2,
+  timeout = 25000
+): Promise<any> => {
+  const queryString = new URLSearchParams({ action, ...params }).toString();
+  const url = `${APPS_SCRIPT_URL}?${queryString}`;
+  const key = url;
+
+  if (pendingRequests.has(key)) return pendingRequests.get(key)!;
+
+  const request = (async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        signal: controller.signal,
+        next: { revalidate: 300 } // Cache 5 phút khớp với CACHE_TTL của GAS
+      });
+
+      clearTimeout(timer);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `HTTP ${response.status}: ${response.statusText}\n` +
+          errorText.substring(0, 300)
+        );
+      }
+
+      const text = await response.text();
+
+      if (!text || !text.trim()) {
+        throw new Error("Empty response from Apps Script");
+      }
+
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch (err: any) {
+        throw new Error(
+          "Invalid JSON from Apps Script:\n" +
+          text.substring(0, 500)
+        );
+      }
+
+      if (result.status === "error") {
+        throw new Error(result.message || "Apps Script error");
+      }
+
+      return result;
+
+    } catch (error: any) {
+      const retryable =
+        error.name === "AbortError" ||
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("NetworkError") ||
+        error.message.includes("HTTP 500") ||
+        error.message.includes("HTTP 404");
+
+      if (retries > 0 && retryable) {
+        await new Promise(r => setTimeout(r, 1200));
+        return getFromAppsScript(action, params, retries - 1, timeout);
+      }
+      throw error;
+    } finally {
+      pendingRequests.delete(key);
+      clearTimeout(timer);
+    }
+  })();
+
+  pendingRequests.set(key, request);
+  return request;
+};
+
 // --- CORE REQUEST ---
 const postToAppsScript = async (
   payload: Record<string, any>,
@@ -176,9 +258,9 @@ const fetchDataFromAppsScript = async <T>(
 
     if (stale && !revalidationRequests.has(cacheKey)) {
 
-      const revalidate = postToAppsScript({
-        action: "getSheetData",
-        sheetName
+      const revalidate = getFromAppsScript("getSheetData", {
+        sheetName,
+        ignoreCache: true // Force refresh on server side if needed, though GAS handles its own cache
       })
       .then(res => {
 
@@ -210,10 +292,20 @@ const fetchDataFromAppsScript = async <T>(
 
   }
 
-  const result = await postToAppsScript({
-    action: "getSheetData",
-    sheetName
-  });
+  let result;
+  try {
+    result = await getFromAppsScript("getSheetData", { sheetName });
+    
+    // Fallback to POST if GET returns the default "API running" message (Old Deployment)
+    if (result.status === "ok" && result.message === "API running") {
+      throw new Error("Old Deployment");
+    }
+  } catch (e) {
+    result = await postToAppsScript({
+      action: "getSheetData",
+      sheetName
+    });
+  }
 
   if (result.status === "success" && Array.isArray(result.data)) {
 
@@ -234,6 +326,24 @@ const fetchDataFromAppsScript = async <T>(
 
   throw new Error(result.message || `Failed to fetch sheet: ${sheetName}`);
 };
+
+const clientCache = new Map<string, { data: any; ts: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 phút
+
+async function cachedPost<T>(cacheKey: string, body: object, ttl = CACHE_TTL): Promise<T> {
+  const hit = clientCache.get(cacheKey);
+  if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
+
+  const res = await fetch('/api/apps-script', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  clientCache.set(cacheKey, { data, ts: Date.now() });
+  return data;
+}
+
 
 // --- PAGINATION & SEARCH API ---
 export async function fetchSheetPage<T>(sheetName: string, offset: number, limit: number, query?: Record<string, any>): Promise<T[]> {
@@ -276,10 +386,18 @@ export const getAccountByEmail = async (
   }
 
   try {
-    const result = await postToAppsScript({
-      action: 'getAccountByEmail',
-      email,
-    });
+    let result;
+    try {
+      result = await getFromAppsScript('getAccountByEmail', {
+        email: email.toLowerCase().trim(),
+      });
+      if (result.status === "ok" && result.message === "API running") throw new Error("Old Deployment");
+    } catch {
+      result = await postToAppsScript({
+        action: 'getAccountByEmail',
+        email: email.toLowerCase().trim(),
+      });
+    }
 
     if (result.status === 'success' && result.data) {
       const acc = result.data;
@@ -470,9 +588,8 @@ export const joinClass = async (joinCode: string, studentEmail: string): Promise
 
 export const getClassesForUser = async (email: string): Promise<Classroom[]> => {
     try {
-        const result = await postToAppsScript({
-            action: 'getClassesForUser',
-            email
+        const result = await getFromAppsScript('getClassesForUser', {
+            email: email.trim()
         });
         return result.classes || [];
     } catch (error) {
@@ -483,9 +600,8 @@ export const getClassesForUser = async (email: string): Promise<Classroom[]> => 
 
 export const getClassDetails = async (classId: string): Promise<{ info: Classroom; members: ClassMember[]; quizzes: AssignedQuiz[] } | null> => {
     try {
-        const result = await postToAppsScript({
-            action: 'getClassDetails',
-            classId,
+        const result = await getFromAppsScript('getClassDetails', {
+            classId: classId.trim(),
         });
         return result.details || null;
     } catch (error) {
@@ -584,9 +700,8 @@ export const assignDocumentToClass = async (
 
 export const getScheduleForUser = async (email: string): Promise<ScheduleEvent[]> => {
     try {
-        const result = await postToAppsScript({
-            action: 'getScheduleForUser',
-            email,
+        const result = await getFromAppsScript('getScheduleForUser', {
+            email: email.trim(),
         });
         return result.schedule || [];
     } catch (error) {
@@ -597,18 +712,27 @@ export const getScheduleForUser = async (email: string): Promise<ScheduleEvent[]
 
 export const fetchPurchasedCategories = async (email: string): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
   try {
-    // Thay vì gọi action riêng, ta lấy trực tiếp dữ liệu từ sheet Purchases và lọc tại client
-    // Điều này đảm bảo lấy được cột PurchaseDate chính xác như trong sheet
-    const rawPurchases = await fetchDataFromAppsScript<any>('Purchases');
-
-    if (Array.isArray(rawPurchases)) {
-      const normalizedEmail = email.trim().toLowerCase();
-      return rawPurchases
-        .filter((p: any) => String(p.UserEmail || '').trim().toLowerCase() === normalizedEmail)
-        .map((p: any) => ({
-          CategoryName: String(p.CategoryName || '').trim(),
-          PurchaseDate: String(p.PurchaseDate || p.Timestamp || '').trim(),
-        }));
+    let result;
+    try {
+      result = await getFromAppsScript('getPurchasedCategories', { email: email.trim() });
+      if (result.status === "ok" && result.message === "API running") throw new Error("Old Deployment");
+    } catch {
+      // Fallback to old method: fetch full sheet and filter
+      const rawPurchases = await fetchDataFromAppsScript<any>('Purchases');
+      if (Array.isArray(rawPurchases)) {
+        const normalizedEmail = email.trim().toLowerCase();
+        return rawPurchases
+          .filter((p: any) => String(p.UserEmail || '').trim().toLowerCase() === normalizedEmail)
+          .map((p: any) => ({
+            CategoryName: String(p.CategoryName || '').trim(),
+            PurchaseDate: String(p.PurchaseDate || p.Timestamp || '').trim(),
+          }));
+      }
+      return [];
+    }
+    
+    if (result.status === 'success' && Array.isArray(result.categories)) {
+      return result.categories;
     }
     return [];
   } catch (error) {
@@ -688,236 +812,12 @@ const mapBankQuestionToMedicalQuestion = (raw: any): MedicalQuestion => ({
 });
 
 
-// --- Other Services ---
-const isValidMedicalQuestion = (q: MedicalQuestion): boolean => {
-return !!(
-    q.ID &&
-    q.Question_Text &&
-    q.Option_A &&
-    q.Option_B &&
-    q.Option_C &&
-    q.Option_D &&
-    q.Correct_Answer
-);
-};
-
-export const fetchAnatomyQuestions = async (): Promise<AnatomyQuestion[]> => {
-const questions = await fetchDataFromAppsScript<AnatomyQuestion>('Questions_Anatomy');
-return questions.filter(q => q.ID && q.Question_Text && q.Image_URL && q.Correct_Coordinates);
-};
-
-export const fetchPharmacyQuestions = async (): Promise<MedicalQuestion[]> => {
-const questions = await fetchDataFromAppsScript<MedicalQuestion>('Questions_Pharmacy');
-return questions.filter(isValidMedicalQuestion).map(q => ({...q, Specialty: 'Dược học'}));
-};
-
-export const fetchMedicineQuestions = async (): Promise<MedicalQuestion[]> => {
-const questions = await fetchDataFromAppsScript<MedicalQuestion>('Questions_Medicine');
-return questions.filter(isValidMedicalQuestion).map(q => ({...q, Specialty: 'Y đa khoa'}));
-};
-
-const mapRawQuestionToMedicalQuestion = (raw: any): MedicalQuestion => ({
-    ID: raw.STT || raw.ID || Math.random().toString(36).substring(7),
-    Question_Text: raw.Question || '',
-    Option_A: raw.A || '',
-    Option_B: raw.B || '',
-    Option_C: raw.C || '',
-    Option_D: raw.D || '',
-    Correct_Answer: (raw.Correct || '').trim() as 'A' | 'B' | 'C' | 'D',
-    Explanation: raw.Solution || '',
-    Paragraph: raw.Paragraph || undefined,
-    GroupID: raw.GroupID || undefined,
-    Image_URL: raw.Image_URL || undefined,
-});
-
-export const fetchMathQuestions = async (): Promise<MedicalQuestion[]> => {
-const rawQuestions = await fetchDataFromAppsScript<any>('Toán');
-return rawQuestions.map(mapRawQuestionToMedicalQuestion).filter(isValidMedicalQuestion);
-};
-
-export const fetchLiteratureQuestions = async (): Promise<MedicalQuestion[]> => {
-const rawQuestions = await fetchDataFromAppsScript<any>('NguVan');
-return rawQuestions.map(mapRawQuestionToMedicalQuestion).filter(isValidMedicalQuestion);
-};
-
-const fetchEnglishQuestionsFromSheet = async (): Promise<MedicalQuestion[]> => {
-    const questionsRaw = await fetchDataFromAppsScript<MedicalQuestion>('Questions_English');
-    return questionsRaw.filter(isValidMedicalQuestion).map(q => ({...q, Specialty: 'Tiếng Anh'}));
-};
-
-const fetchEnglishReadingQuestionsFromSheet = async (): Promise<MedicalQuestion[]> => {
-    const questionsRaw = await fetchDataFromAppsScript<MedicalQuestion>('Questions_English_Reading');
-    return questionsRaw.filter(isValidMedicalQuestion).map(q => ({...q, Specialty: 'Reading'}));
-};
-
-export const fetchVocabularyMCQ = async (): Promise<MedicalQuestion[]> => {
-    const questions = await fetchDataFromAppsScript<MedicalQuestion>('Vocabulary');
-    return questions.filter(isValidMedicalQuestion).map(q => ({...q, Specialty: 'Từ vựng'}));
-};
-
-export const fetchQuizQuestions = async (subject: string, config?: { questions: number }): Promise<MedicalQuestion[]> => {
-    let allQuestions: MedicalQuestion[] = [];
-
-    const subjectKeyMap: { [key: string]: string[] } = {
-        'toan': ['toán', 'toán học'],
-        'hoa': ['hóa học', 'dược học', 'hóa'],
-        'sinh': ['sinh học', 'y đa khoa', 'sinh'],
-        'van': ['ngữ văn', 'văn'],
-        'anh': ['tiếng anh', 'reading', 'anh'],
-        'ly': ['vật lý', 'lý'],
-        'su': ['lịch sử', 'sử'],
-        'dia': ['địa lý', 'địa'],
-        'gdcd': ['giáo dục công dân', 'gdcd'],
-        'vocabulary': ['từ vựng'],
-    };
-
-    const targetSubjects = subjectKeyMap[subject.toLowerCase()] || [];
-
-    // 1. Fetch from new unified bank
-    let questionsFromBank: MedicalQuestion[] = [];
-    try {
-        const bankQuestionsRaw = await fetchDataFromAppsScript<any>('Questions_Banks');
-        const bankQuestions = bankQuestionsRaw
-            .map(mapBankQuestionToMedicalQuestion)
-            .filter(isValidMedicalQuestion);
-
-        if (targetSubjects.length > 0) {
-            questionsFromBank = bankQuestions.filter(q => 
-                targetSubjects.some(s => (q.Specialty || '').trim().toLowerCase().includes(s))
-            );
-        }
-    } catch (e) {
-        console.error("Could not fetch from Questions_Banks, will use fallbacks.", e);
-    }
-    
-    // 2. Fetch from old sheets for backward compatibility
-    let questionsFromOldSheets: MedicalQuestion[] = [];
-    switch (subject.toLowerCase()) {
-        case 'anh':
-            const [grammarQuestions, readingQuestions] = await Promise.all([
-                fetchEnglishQuestionsFromSheet(),
-                fetchEnglishReadingQuestionsFromSheet(),
-            ]);
-            questionsFromOldSheets = [...grammarQuestions, ...readingQuestions];
-            break;
-        case 'hoa':
-            questionsFromOldSheets = await fetchPharmacyQuestions();
-            break;
-        case 'sinh':
-            questionsFromOldSheets = await fetchMedicineQuestions();
-            break;
-        case 'van':
-            questionsFromOldSheets = await fetchLiteratureQuestions();
-            break;
-        case 'vocabulary':
-            questionsFromOldSheets = await fetchVocabularyMCQ();
-            break;
-        default:
-            // No specific old sheet for this subject key
-            break;
-    }
-
-    // 3. Combine and deduplicate
-    const combinedQuestions = [...questionsFromBank, ...questionsFromOldSheets];
-    const uniqueQuestions = Array.from(new Map(combinedQuestions.map(q => [q.Question_Text, q])).values());
-    allQuestions = uniqueQuestions;
-    
-    if (config) {
-        const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, Math.min(config.questions, allQuestions.length));
-    }
-    
-    return allQuestions;
-};
-
-export const fetchAllQuestionsFromBank = async (): Promise<MedicalQuestion[]> => {
-    try {
-        const bankQuestionsRaw = await fetchDataFromAppsScript<any>('Questions_Banks');
-        return bankQuestionsRaw
-            .map(mapBankQuestionToMedicalQuestion)
-            .filter(isValidMedicalQuestion);
-    } catch (e) {
-        console.error("Failed to fetch all questions from bank", e);
-        return [];
-    }
-};
-
-
-export const fetchAllQuestions = async (): Promise<AnyQuestion[]> => {
-try {
-    const [anatomy, medicine, pharmacy] = await Promise.all([
-    fetchDataFromAppsScript<AnatomyQuestion>('Questions_Anatomy'),
-    fetchDataFromAppsScript<MedicalQuestion>('Questions_Medicine'),
-    fetchDataFromAppsScript<MedicalQuestion>('Questions_Pharmacy'),
-    ]);
-
-    const anatomyQuestions: AnyQuestion[] = anatomy
-        .filter(q => q.ID && q.Question_Text && q.Image_URL && q.Correct_Coordinates)
-        .map(q => ({ ...q, type: 'Anatomy' }));
-    const medicineQuestions: AnyQuestion[] = medicine.filter(isValidMedicalQuestion).map(q => ({ ...q, type: 'Medicine' }));
-    const pharmacyQuestions: AnyQuestion[] = pharmacy.filter(isValidMedicalQuestion).map(q => ({ ...q, type: 'Pharmacy' }));
-    
-    return [...anatomyQuestions, ...medicineQuestions, ...pharmacyQuestions];
-} catch (error) {
-    console.error("Failed to fetch all questions:", error);
-    throw new Error("Could not load all question types.");
-}
-};
-
-export const fetchAllMCQQuestions = async (): Promise<MedicalQuestion[]> => {
-    try {
-        // Primary source is the new unified question bank
-        const bankQuestionsRaw = await fetchDataFromAppsScript<any>('Questions_Banks');
-        const bankQuestions = bankQuestionsRaw.map(mapBankQuestionToMedicalQuestion).filter(isValidMedicalQuestion);
-        
-        // For backwards compatibility and subjects not yet migrated, fetch from old sheets.
-        const [medicine, pharmacy, english, englishReading, vocabulary] = await Promise.all([
-            fetchMedicineQuestions(),
-            fetchPharmacyQuestions(),
-            fetchEnglishQuestionsFromSheet(),
-            fetchEnglishReadingQuestionsFromSheet(),
-            fetchVocabularyMCQ()
-        ]);
-        
-        const allQuestions = [
-            ...bankQuestions,
-            ...medicine,
-            ...pharmacy,
-            ...english,
-            ...englishReading,
-            ...vocabulary,
-        ];
-        
-        // Create a unique set based on Question_Text to avoid duplicates
-        const uniqueQuestions = Array.from(new Map(allQuestions.map(q => [q.Question_Text, q])).values());
-
-        return uniqueQuestions;
-    } catch (error) {
-        console.error("Failed to fetch all MCQ questions:", error);
-        throw new Error("Could not load all MCQ question types.");
-    }
-};
-
 export const fetchDocuments = async (): Promise<DocumentData[]> => {
 const rawDocs = await fetchDataFromAppsScript<any>('Documents');
 return rawDocs.map((doc: any) => ({
     title: doc.title || '',
     author: doc.author || '',
     category: doc.category || '',
-    pages: parseInt(doc.pages || '0', 10),
-    imageUrl: doc.imageUrl || '',
-    documentUrl: doc.documentUrl || '',
-    uploader: doc.uploader || '',
-    uploadDate: doc.uploadDate || '',
-}));
-};
-
-export const fetchPublications = async (): Promise<DocumentData[]> => {
-const rawDocs = await fetchDataFromAppsScript<any>('Publications');
-return rawDocs.map((doc: any) => ({
-    title: doc.title || '',
-    author: doc.author || '',
-    category: doc.category || '', // In Publications.tsx, this is used as 'Vinh danh'
     pages: parseInt(doc.pages || '0', 10),
     imageUrl: doc.imageUrl || '',
     documentUrl: doc.documentUrl || '',
@@ -1050,6 +950,27 @@ export const getCourseById = async (id: string): Promise<Course | null> => {
     // Tìm khóa học trong danh sách đã cache
     const course = courses.find(c => String(c.ID).trim() === String(id).trim());
     return course || null;
+};
+
+export const fetchCourseDetail = async (courseId: string): Promise<{ course: Course; articles: ScientificArticle[]; teacher: Account | null }> => {
+  try {
+    let result;
+    try {
+      result = await getFromAppsScript('getCourseDetail', { courseId });
+      if (result.status === "ok" && result.message === "API running") throw new Error("Old Deployment");
+    } catch {
+      // Fallback to POST if GET fails
+      result = await postToAppsScript({ action: 'getCourseDetail', courseId });
+    }
+    return {
+      course: result.course,
+      articles: result.articles,
+      teacher: result.teacher
+    };
+  } catch (error) {
+    console.error('Failed to fetch course detail:', error);
+    throw error;
+  }
 };
 
 export const fetchForumPosts = async (ignoreCache: boolean = false, skipLocalCache: boolean = false): Promise<ForumPost[]> => {
@@ -1474,7 +1395,7 @@ export const revokeSharedCourse = async (shareId: string, userEmail: string): Pr
 
 export const getSharedCoursesInbox = async (userEmail: string): Promise<{ success: boolean; data?: any[]; error?: string }> => {
     try {
-        const result = await postToAppsScript({ action: 'getSharedCoursesInbox', userEmail });
+        const result = await getFromAppsScript('getSharedCoursesInbox', { userEmail });
         if (result.status === 'success') {
             return { success: true, data: result.data };
         }
@@ -1486,7 +1407,7 @@ export const getSharedCoursesInbox = async (userEmail: string): Promise<{ succes
 
 export const getSharedCoursesOutbox = async (userEmail: string): Promise<{ success: boolean; data?: any[]; error?: string }> => {
     try {
-        const result = await postToAppsScript({ action: 'getSharedCoursesOutbox', userEmail });
+        const result = await getFromAppsScript('getSharedCoursesOutbox', { userEmail });
         if (result.status === 'success') {
             return { success: true, data: result.data };
         }
@@ -1563,9 +1484,8 @@ export async function uploadForumImage(
 
 export const fetchUserQuiz = async (quizId: string): Promise<UserQuiz | null> => {
     try {
-        const result = await postToAppsScript({
-            action: 'getUserQuiz',
-            quizId: quizId,
+        const result = await getFromAppsScript('getUserQuiz', {
+            quizId: quizId.trim(),
         });
         if (result.status === 'success' && result.quizData) {
             return result.quizData as UserQuiz;
@@ -1727,22 +1647,6 @@ export const exportQuizResultsToSheet = async (quizId: string): Promise<{ succes
     }
 };
 
-export const purchaseCourse = async (email: string, courseId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-        const result = await postToAppsScript({
-            action: 'updateOwnedCourses',
-            email: email,
-            courseId: courseId
-        }, 0, 5000);
-        return { success: result.status === 'success', error: result.message };
-    } catch (error: any) {
-        if (typeof window !== 'undefined' && (error.name === 'AbortError' || error.message?.includes('timeout'))) {
-            window.location.reload();
-        }
-        return { success: false, error: error.message };
-    }
-};
-
 export const updateCriterion = async (email: string, index: number, label: string, score: number): Promise<{ success: boolean; error?: string }> => {
     try {
         const result = await postToAppsScript({
@@ -1790,7 +1694,7 @@ export async function uploadAvatar(
   return result.avatarUrl as string;
 }
 
-function compressImage(file: File, maxSize = 1024, quality = 0.8): Promise<string> {
+function compressImage(file: File, maxSize = 1024, quality = 0.85): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);

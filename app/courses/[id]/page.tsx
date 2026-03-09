@@ -126,11 +126,50 @@ export default function CourseDetailPage() {
     const [groupedContent, setGroupedContent] = useState<{ [key: string]: ScientificArticle[] }>({});
     const [stageOrder, setStageOrder] = useState<string[]>([]);
 
+    // Helper: chuẩn hoá chuỗi để so sánh
+    const cleanStr = (s: string) =>
+        s.trim().replace(/\s*\((?:[\d.,]+\s*đ|Miễn phí|0\s*đ)\)$/i, '').trim().toLowerCase();
+
+    // Helper: kiểm tra purchased từ danh sách + owned string
+    const checkPurchased = (
+        foundCourse: Course,
+        purchasedCats: { CategoryName: string }[],
+        ownedString?: string
+    ): boolean => {
+        const courseCategory = cleanStr(foundCourse.Category || '');
+        const courseTitle    = cleanStr(foundCourse.Title || '');
+        const courseId       = cleanStr(String(foundCourse.ID || ''));
+
+        const matches = (record: string) =>
+            record && (
+                record === courseId ||
+                record === courseCategory ||
+                record === courseTitle ||
+                courseTitle.includes(record) ||
+                courseCategory.includes(record) ||
+                record.includes(courseTitle) ||
+                record.includes(courseCategory)
+            );
+
+        // 1. Từ Purchases API
+        for (const pc of purchasedCats) {
+            if (matches(cleanStr(pc.CategoryName))) return true;
+        }
+
+        // 2. Từ cột Owned trong account (fallback)
+        if (ownedString) {
+            for (const item of ownedString.split(',')) {
+                if (matches(cleanStr(item))) return true;
+            }
+        }
+
+        return false;
+    };
+
     useEffect(() => {
         const loadData = async () => {
             setIsLoading(true);
             try {
-                // Tối ưu hóa: Tải song song tất cả dữ liệu cần thiết
                 const [courses, allArticles, purchasedCats, accounts] = await Promise.all([
                     fetchCourses(),
                     fetchPremiumArticles(),
@@ -138,57 +177,48 @@ export default function CourseDetailPage() {
                     fetchAccounts()
                 ]);
 
-                // Tìm course với nhiều cách khác nhau
+                // Tìm course theo ID, fallback theo index
                 let foundCourse = courses.find(c => String(c.ID) === String(params.id));
-                
-                // Nếu không tìm thấy bằng ID, thử tìm bằng index
                 if (!foundCourse) {
                     const index = parseInt(params.id as string);
                     if (!isNaN(index) && index >= 0 && index < courses.length) {
                         foundCourse = courses[index];
                     }
                 }
-                
+
                 if (!foundCourse) {
-                    console.error("❌ Course not found for ID:", params.id);
                     addToast('Không tìm thấy khóa học.', 'error');
                     router.push('/courses');
                     return;
                 }
-                
+
                 setCourse(foundCourse);
 
+                // Lọc articles liên quan
                 const relatedContent = allArticles.filter(
-                    art => art.Category.trim().toLowerCase() === foundCourse.Category.trim().toLowerCase() && 
-                           art.Status === 'Approved'
+                    art =>
+                        art.Category.trim().toLowerCase() === foundCourse!.Category.trim().toLowerCase() &&
+                        art.Status === 'Approved'
                 );
                 setContentItems(relatedContent);
 
-                // Find teacher account
+                // Tìm giáo viên
                 if (foundCourse.MainTeacher) {
-                    const foundTeacher = accounts.find(acc => 
-                        acc.Email.toLowerCase() === foundCourse.MainTeacher?.toLowerCase()
+                    const foundTeacher = accounts.find(
+                        acc => acc.Email.toLowerCase() === foundCourse!.MainTeacher?.toLowerCase()
                     );
                     setTeacher(foundTeacher || null);
                 }
 
-                // Grouping Logic
+                // Group theo Part
                 const groups: { [key: string]: ScientificArticle[] } = {};
-                let order: string[] = [];
-
-                // Group strictly by Part (Path) as requested
                 relatedContent.forEach(item => {
-                    // Use Part as path. If empty, group into 'Tài liệu chung'
-                    const path = item.Part && item.Part.trim() !== '' ? item.Part.trim() : 'Tài liệu chung';
-                    
-                    if (!groups[path]) {
-                        groups[path] = [];
-                    }
+                    const path = item.Part?.trim() || 'Tài liệu chung';
+                    if (!groups[path]) groups[path] = [];
                     groups[path].push(item);
                 });
 
-                // Sort groups alphabetically
-                order = Object.keys(groups).sort((a, b) => {
+                const order = Object.keys(groups).sort((a, b) => {
                     if (a === 'Tài liệu chung') return 1;
                     if (b === 'Tài liệu chung') return -1;
                     return a.localeCompare(b, undefined, { numeric: true });
@@ -197,63 +227,16 @@ export default function CourseDetailPage() {
                 setGroupedContent(groups);
                 setStageOrder(order);
 
-                // SEO: Update document title dynamically
-                if (foundCourse) {
-                    document.title = `${foundCourse.Title} - Tài liệu & Khóa học SuniSVG`;
-                    // Optional: You could also update meta description via DOM if needed for social sharing snippets
-                    // though Server Side Rendering is preferred for that.
-                }
+                // SEO
+                document.title = `${foundCourse.Title} - Tài liệu & Khóa học SuniSVG`;
 
+                // Kiểm tra đã mua chưa
                 if (currentUser) {
-                    let purchased = false;
-                    
-                    // Hàm chuẩn hóa: xóa khoảng trắng, chuyển thường, xóa phần giá tiền (ví dụ: "(500.000đ)")
-                    const cleanStr = (s: string) => s.trim().replace(/\s*\((?:[\d.,]+\s*đ|Miễn phí|0\s*đ)\)$/i, '').trim().toLowerCase();
-                    const courseCategory = cleanStr(foundCourse.Category || '');
-                    const courseTitle = cleanStr(foundCourse.Title || '');
-                    const courseId = cleanStr(String(foundCourse.ID || ''));
-                    
-                    // 1. Kiểm tra từ danh sách Purchases (API getPurchasedCategories)
-                    for (const pc of purchasedCats) {
-                        const purchaseRecord = cleanStr(pc.CategoryName);
-
-                        // So sánh bản ghi mua hàng với ID, Category, hoặc Title của khóa học.
-                        // So sánh với ID là đáng tin cậy nhất.
-                        if (purchaseRecord && (
-                            purchaseRecord === courseId || 
-                            purchaseRecord === courseCategory || 
-                            purchaseRecord === courseTitle ||
-                            courseTitle.includes(purchaseRecord) ||
-                            courseCategory.includes(purchaseRecord) ||
-                            purchaseRecord.includes(courseTitle) ||
-                            purchaseRecord.includes(courseCategory)
-                        )) {
-                            purchased = true;
-                            break;
-                        }
-                    }
-
-                    // 2. Kiểm tra từ cột 'Owned' trong tài khoản (Fallback nếu API Purchases chưa kịp cập nhật hoặc mua thủ công)
-                    if (!purchased && (currentUser as any)['Owned']) {
-                        const ownedList = String((currentUser as any)['Owned']).split(',');
-                        for (const item of ownedList) {
-                            const ownedItem = cleanStr(item);
-                            
-                            if (ownedItem && (
-                                ownedItem === courseId || 
-                                ownedItem === courseCategory || 
-                                ownedItem === courseTitle ||
-                                courseTitle.includes(ownedItem) ||
-                                courseCategory.includes(ownedItem) ||
-                                ownedItem.includes(courseTitle) ||
-                                ownedItem.includes(courseCategory)
-                            )) {
-                                purchased = true;
-                                break;
-                            }
-                        }
-                    }
-
+                    const purchased = checkPurchased(
+                        foundCourse,
+                        purchasedCats,
+                        (currentUser as any)['Owned']
+                    );
                     setIsPurchased(purchased);
                 }
             } catch (error) {
@@ -265,11 +248,11 @@ export default function CourseDetailPage() {
         };
 
         loadData();
-    }, [params.id, currentUser, router, addToast]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params.id]); // ✅ Chỉ chạy lại khi đổi trang, KHÔNG phụ thuộc currentUser
 
     const parseDate = (dateStr: string | undefined) => {
         if (!dateStr) return new Date(0);
-        // Format: dd/MM/yyyy HH:mm:ss (e.g., 26/11/2021 13:26:15)
         const parts = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/);
         if (parts) {
             return new Date(
@@ -285,15 +268,15 @@ export default function CourseDetailPage() {
     };
 
     const newestContent = useMemo(() => {
-        return [...contentItems].sort((a, b) => {
-            return parseDate((b as any).SubmissionDate).getTime() - parseDate((a as any).SubmissionDate).getTime();
-        });
+        return [...contentItems].sort((a, b) =>
+            parseDate((b as any).SubmissionDate).getTime() - parseDate((a as any).SubmissionDate).getTime()
+        );
     }, [contentItems]);
 
     const scheduleContent = useMemo(() => {
-        return [...contentItems].sort((a, b) => {
-            return parseDate((a as any).SubmissionDate).getTime() - parseDate((b as any).SubmissionDate).getTime();
-        });
+        return [...contentItems].sort((a, b) =>
+            parseDate((a as any).SubmissionDate).getTime() - parseDate((b as any).SubmissionDate).getTime()
+        );
     }, [contentItems]);
 
     const handlePurchase = async () => {
@@ -319,14 +302,16 @@ export default function CourseDetailPage() {
         try {
             const result = await purchasePremiumCategory(currentUser.Email, course.Category);
             if (result.success) {
-                alert('Đăng ký thành công! Trang sẽ được tải lại để cập nhật nội dung.');
-                window.location.reload();
+                // ✅ Cập nhật state trực tiếp — KHÔNG reload trang
+                setIsPurchased(true);
+                await refreshCurrentUser(); // cập nhật số dư mới trong AuthContext
+                addToast('Đăng ký thành công! Bạn đã có thể truy cập toàn bộ nội dung.', 'success');
             } else {
                 addToast(result.error || 'Giao dịch thất bại.', 'error');
-                setIsPurchasing(false);
             }
         } catch (e: any) {
             addToast(e.message || 'Lỗi kết nối.', 'error');
+        } finally {
             setIsPurchasing(false);
         }
     };
@@ -337,7 +322,6 @@ export default function CourseDetailPage() {
         addToast('Nạp tiền thành công! Vui lòng thử lại giao dịch.', 'success');
     };
 
-    // Calculate original price if sales exist
     const originalPrice = useMemo(() => {
         if (!course) return 0;
         if (course.Sales) {
@@ -346,7 +330,7 @@ export default function CourseDetailPage() {
                 return Math.round(course.Price / (1 - discountPercent / 100));
             }
         }
-        return course.Price * 1.5; // Default fallback if no specific sales data
+        return course.Price * 1.5;
     }, [course]);
 
     if (isLoading) {
@@ -389,10 +373,10 @@ export default function CourseDetailPage() {
             <div className="container mx-auto max-w-7xl px-4 mt-8">
                 <div className="flex flex-col lg:flex-row gap-8">
                     
-                    {/* LEFT COLUMN - MAIN CONTENT */}
+                    {/* LEFT COLUMN */}
                     <div className="flex-1 min-w-0 space-y-8">
                         
-                        {/* 1. Intro Section */}
+                        {/* 1. Intro */}
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
                             <h1 className="text-2xl font-bold text-gray-900 mb-6">Giới thiệu khóa học {course.Title}</h1>
                             <p className="text-gray-600 leading-relaxed mb-8 whitespace-pre-line">
@@ -400,40 +384,32 @@ export default function CourseDetailPage() {
                             </p>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                                <div>
-                                    <div className="flex items-start gap-3 mb-1">
-                                        <Icon name="user" className="w-5 h-5 text-gray-400 mt-0.5" />
-                                        <div>
-                                            <span className="block text-sm text-gray-500">Đối tượng học:</span>
-                                            <span className="font-medium text-gray-900">{course.For || 'Học sinh lớp 12, Ôn thi THPTQG'}</span>
-                                        </div>
+                                <div className="flex items-start gap-3">
+                                    <Icon name="user" className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <span className="block text-sm text-gray-500">Đối tượng học:</span>
+                                        <span className="font-medium text-gray-900">{course.For || 'Học sinh lớp 12, Ôn thi THPTQG'}</span>
                                     </div>
                                 </div>
-                                <div>
-                                    <div className="flex items-start gap-3 mb-1">
-                                        <Icon name="video" className="w-5 h-5 text-gray-400 mt-0.5" />
-                                        <div>
-                                            <span className="block text-sm text-gray-500">Trạng thái:</span>
-                                            <span className="font-medium text-gray-900">{course.Update || 'Đang cập nhật'}</span>
-                                        </div>
+                                <div className="flex items-start gap-3">
+                                    <Icon name="video" className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <span className="block text-sm text-gray-500">Trạng thái:</span>
+                                        <span className="font-medium text-gray-900">{course.Update || 'Đang cập nhật'}</span>
                                     </div>
                                 </div>
-                                <div>
-                                    <div className="flex items-start gap-3 mb-1">
-                                        <Icon name="calendar" className="w-5 h-5 text-gray-400 mt-0.5" />
-                                        <div>
-                                            <span className="block text-sm text-gray-500">Hạn sử dụng:</span>
-                                            <span className="font-medium text-gray-900">{course.Expiry ? `${course.Expiry} ngày` : 'Vĩnh viễn'}</span>
-                                        </div>
+                                <div className="flex items-start gap-3">
+                                    <Icon name="calendar" className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <span className="block text-sm text-gray-500">Hạn sử dụng:</span>
+                                        <span className="font-medium text-gray-900">{course.Expiry ? `${course.Expiry} ngày` : 'Vĩnh viễn'}</span>
                                     </div>
                                 </div>
-                                <div>
-                                    <div className="flex items-start gap-3 mb-1">
-                                        <Icon name="star" className="w-5 h-5 text-gray-400 mt-0.5" />
-                                        <div>
-                                            <span className="block text-sm text-gray-500">Ưu đãi:</span>
-                                            <span className="font-medium text-gray-900">{course.Sales ? `Giảm ${course.Sales}%` : 'Không có'}</span>
-                                        </div>
+                                <div className="flex items-start gap-3">
+                                    <Icon name="star" className="w-5 h-5 text-gray-400 mt-0.5" />
+                                    <div>
+                                        <span className="block text-sm text-gray-500">Ưu đãi:</span>
+                                        <span className="font-medium text-gray-900">{course.Sales ? `Giảm ${course.Sales}%` : 'Không có'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -441,39 +417,36 @@ export default function CourseDetailPage() {
                             <div className="mt-8 pt-8 border-t border-gray-100">
                                 <h2 className="font-bold text-gray-900 mb-6 text-lg">Mục tiêu chương trình học</h2>
                                 <ul className="space-y-4">
-                                    {(course.Goal ? course.Goal.split(',') : (teacher?.Goal ? teacher.Goal.split(',') : [
-                                        'Hệ thống toàn bộ kiến thức trong chương trình học từ cơ bản đến nâng cao',
-                                        'Thành thạo mọi dạng bài tập trong các bài thi TN THPT, HSA, VACT',
-                                        'Nâng cao kỹ năng làm bài với bộ đề chuẩn cấu trúc đề thi thật',
-                                        'Rèn luyện tư duy giải quyết vấn đề nhanh và chính xác'
-                                    ])).map(g => g.trim()).filter(Boolean).map((goal, idx) => {
-                                        // Default fallback based on index to ensure diversity even without keyword match
+                                    {(course.Goal
+                                        ? course.Goal.split(',')
+                                        : teacher?.Goal
+                                            ? teacher.Goal.split(',')
+                                            : [
+                                                'Hệ thống toàn bộ kiến thức trong chương trình học từ cơ bản đến nâng cao',
+                                                'Thành thạo mọi dạng bài tập trong các bài thi TN THPT, HSA, VACT',
+                                                'Nâng cao kỹ năng làm bài với bộ đề chuẩn cấu trúc đề thi thật',
+                                                'Rèn luyện tư duy giải quyết vấn đề nhanh và chính xác'
+                                            ]
+                                    ).map(g => g.trim()).filter(Boolean).map((goal, idx) => {
                                         const fallbackIcons = ['book', 'file-text', 'bar-chart', 'star'];
                                         const fallbackColors = [
-                                            'bg-blue-100 text-blue-600', 
-                                            'bg-green-100 text-green-600', 
-                                            'bg-orange-100 text-orange-600', 
+                                            'bg-blue-100 text-blue-600',
+                                            'bg-green-100 text-green-600',
+                                            'bg-orange-100 text-orange-600',
                                             'bg-purple-100 text-purple-600'
                                         ];
-                                        
-                                        let iconName = fallbackIcons[idx % fallbackIcons.length];
+                                        let iconName  = fallbackIcons[idx % fallbackIcons.length];
                                         let colorClass = fallbackColors[idx % fallbackColors.length];
-                                        
                                         const lowerGoal = goal.toLowerCase();
                                         if (lowerGoal.includes('kiến thức') || lowerGoal.includes('hệ thống') || lowerGoal.includes('lý thuyết')) {
-                                            iconName = 'book';
-                                            colorClass = 'bg-blue-100 text-blue-600';
+                                            iconName = 'book'; colorClass = 'bg-blue-100 text-blue-600';
                                         } else if (lowerGoal.includes('bài tập') || lowerGoal.includes('thành thạo') || lowerGoal.includes('luyện tập')) {
-                                            iconName = 'file-text';
-                                            colorClass = 'bg-green-100 text-green-600';
+                                            iconName = 'file-text'; colorClass = 'bg-green-100 text-green-600';
                                         } else if (lowerGoal.includes('đề thi') || lowerGoal.includes('kỹ năng') || lowerGoal.includes('chiến thuật')) {
-                                            iconName = 'bar-chart';
-                                            colorClass = 'bg-orange-100 text-orange-600';
+                                            iconName = 'bar-chart'; colorClass = 'bg-orange-100 text-orange-600';
                                         } else if (lowerGoal.includes('tư duy') || lowerGoal.includes('giải quyết') || lowerGoal.includes('sáng tạo')) {
-                                            iconName = 'star';
-                                            colorClass = 'bg-purple-100 text-purple-600';
+                                            iconName = 'star'; colorClass = 'bg-purple-100 text-purple-600';
                                         }
-
                                         return (
                                             <li key={idx} className="flex items-start gap-4">
                                                 <div className={`w-10 h-10 rounded-xl ${colorClass} flex items-center justify-center flex-shrink-0`}>
@@ -487,7 +460,7 @@ export default function CourseDetailPage() {
                             </div>
                         </div>
 
-                        {/* 2. Teacher Section */}
+                        {/* 2. Teacher */}
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
                             <h2 className="text-2xl font-bold text-gray-900 mb-6">Thông tin Giáo viên</h2>
                             <div className="flex items-start gap-6">
@@ -509,7 +482,6 @@ export default function CourseDetailPage() {
                                         <Icon name="check-circle" className="w-5 h-5 text-green-500" />
                                     </div>
                                     <p className="text-gray-500 text-sm mb-4">{teacher?.['Danh hiệu'] || 'Giảng viên cao cấp'}</p>
-                                    
                                     <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">
                                         {teacher?.['Thông tin mô tả'] || 'Giảng viên có nhiều năm kinh nghiệm trong việc giảng dạy và ôn thi.'}
                                     </div>
@@ -517,113 +489,60 @@ export default function CourseDetailPage() {
                             </div>
                         </div>
 
-                        {/* 3. Features / Experience Section */}
+                        {/* 3. Features */}
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">Trải nghiệm nền tảng học tập toàn diện</h2>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                                <FeatureCard 
-                                    title="Video Học Thử + Livestream"
-                                    items={['Học qua Sách ID kèm video bài giảng quay sẵn', 'Học qua Livestream trên web sunisvg.netlify.app với tương tác trực tiếp cùng giáo viên']}
-                                    colorClass="bg-blue-50"
-                                    iconColorClass="text-blue-600"
-                                    iconName="play-circle"
-                                />
-                                <FeatureCard 
-                                    title="Tài liệu Ôn Tập Chọn Lọc"
-                                    items={['Nội dung và bài tập được tuyển chọn và kiểm duyệt', 'Hệ thống bài tập được xây dựng từ cơ bản đến nâng cao', 'Lưu ý: Một số hệ thống tài liệu đang gặp trục trặc về hiển thị, đội ngũ đang khẩn trương khắc phục. Mong quý phụ huynh và học sinh thông cảm và tiếp tục ủng hộ!']}
-                                    colorClass="bg-green-50"
-                                    iconColorClass="text-green-600"
-                                    iconName="book"
-                                />
-                                <FeatureCard 
-                                    title="Thi Online"
-                                    items={['Thi thử miễn phí, hướng dẫn giải ngay sau khi luyện', 'Đề thi cập nhật mới nhất theo form của Bộ GD&DT', 'Mô phỏng tương tự thi thật tới 99%']}
-                                    colorClass="bg-orange-50"
-                                    iconColorClass="text-orange-600"
-                                    iconName="monitor"
-                                />
+                                <FeatureCard title="Video Học Thử + Livestream" items={['Học qua Sách ID kèm video bài giảng quay sẵn', 'Học qua Livestream trên web sunisvg.netlify.app với tương tác trực tiếp cùng giáo viên']} colorClass="bg-blue-50" iconColorClass="text-blue-600" iconName="play-circle" />
+                                <FeatureCard title="Tài liệu Ôn Tập Chọn Lọc" items={['Nội dung và bài tập được tuyển chọn và kiểm duyệt', 'Hệ thống bài tập được xây dựng từ cơ bản đến nâng cao', 'Lưu ý: Một số hệ thống tài liệu đang gặp trục trặc về hiển thị, đội ngũ đang khẩn trương khắc phục.']} colorClass="bg-green-50" iconColorClass="text-green-600" iconName="book" />
+                                <FeatureCard title="Thi Online" items={['Thi thử miễn phí, hướng dẫn giải ngay sau khi luyện', 'Đề thi cập nhật mới nhất theo form của Bộ GD&DT', 'Mô phỏng tương tự thi thật tới 99%']} colorClass="bg-orange-50" iconColorClass="text-orange-600" iconName="monitor" />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <FeatureCard 
-                                    title="Tham gia nhóm và trao đổi trực tiếp với giáo viên"
-                                    colorClass="bg-indigo-50"
-                                    iconColorClass="text-indigo-600"
-                                    iconName="users"
-                                />
-                                <FeatureCard 
-                                    title="Được hỗ trợ trực tiếp từ đội ngũ MOD"
-                                    colorClass="bg-cyan-50"
-                                    iconColorClass="text-cyan-600"
-                                    iconName="headphones"
-                                />
-                                <FeatureCard 
-                                    title="Đánh giá mức độ chuyên cần"
-                                    colorClass="bg-yellow-50"
-                                    iconColorClass="text-yellow-600"
-                                    iconName="bar-chart"
-                                />
+                                <FeatureCard title="Tham gia nhóm và trao đổi trực tiếp với giáo viên" colorClass="bg-indigo-50" iconColorClass="text-indigo-600" iconName="users" />
+                                <FeatureCard title="Được hỗ trợ trực tiếp từ đội ngũ MOD" colorClass="bg-cyan-50" iconColorClass="text-cyan-600" iconName="headphones" />
+                                <FeatureCard title="Đánh giá mức độ chuyên cần" colorClass="bg-yellow-50" iconColorClass="text-yellow-600" iconName="bar-chart" />
                             </div>
                         </div>
 
-                        {/* 4. Syllabus Section (De cuong) */}
+                        {/* 4. Syllabus */}
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
                             <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Trọn bộ tài liệu & bài giảng</h2>
                             
                             <div className="flex justify-center gap-4 mb-8">
-                                <button 
-                                    onClick={() => setActiveTab('syllabus')}
-                                    className={`px-6 py-2.5 font-bold rounded-lg transition-all ${activeTab === 'syllabus' ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    Đề cương
-                                </button>
-                                <button 
-                                    onClick={() => setActiveTab('newest')}
-                                    className={`px-6 py-2.5 font-bold rounded-lg transition-all ${activeTab === 'newest' ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    Bài mới
-                                </button>
-                                <button 
-                                    onClick={() => setActiveTab('schedule')}
-                                    className={`px-6 py-2.5 font-bold rounded-lg transition-all ${activeTab === 'schedule' ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    Lịch phát hành
-                                </button>
+                                {(['syllabus', 'newest', 'schedule'] as const).map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab)}
+                                        className={`px-6 py-2.5 font-bold rounded-lg transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                    >
+                                        {tab === 'syllabus' ? 'Đề cương' : tab === 'newest' ? 'Bài mới' : 'Lịch phát hành'}
+                                    </button>
+                                ))}
                             </div>
 
                             {activeTab === 'syllabus' && (
                                 stageOrder.length > 0 ? (
                                     <div className="space-y-0">
-                                        {stageOrder.map((stageName, stageIndex) => (
+                                        {stageOrder.map(stageName => (
                                             <div key={stageName} className="border-b border-gray-100 last:border-0">
                                                 <div className="flex items-center justify-between py-5 cursor-pointer hover:bg-gray-50 transition-colors group">
                                                     <h3 className="font-bold text-blue-600 uppercase text-sm group-hover:text-blue-800 pl-2">
                                                         {stageName}
                                                     </h3>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="w-8 h-8 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center shadow-sm">
-                                                            {groupedContent[stageName].length}
-                                                        </span>
-                                                    </div>
+                                                    <span className="w-8 h-8 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center shadow-sm">
+                                                        {groupedContent[stageName].length}
+                                                    </span>
                                                 </div>
-                                                {/* Always expanded for now as per image style which shows list */}
                                                 <div className="pl-4 pb-4">
                                                     {groupedContent[stageName].map((item, index) => (
-                                                        <CourseContentItem 
-                                                            key={item.ID} 
-                                                            item={item} 
-                                                            isUnlocked={isPurchased || course.Price === 0}
-                                                            index={index}
-                                                            onPlay={setPlayingVideo}
-                                                        />
+                                                        <CourseContentItem key={item.ID} item={item} isUnlocked={isPurchased || course.Price === 0} index={index} onPlay={setPlayingVideo} />
                                                     ))}
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-12 text-gray-500">
-                                        Nội dung đang được cập nhật.
-                                    </div>
+                                    <div className="text-center py-12 text-gray-500">Nội dung đang được cập nhật.</div>
                                 )
                             )}
 
@@ -631,18 +550,10 @@ export default function CourseDetailPage() {
                                 <div className="space-y-2">
                                     {newestContent.length > 0 ? (
                                         newestContent.map((item, index) => (
-                                            <CourseContentItem 
-                                                key={item.ID} 
-                                                item={item} 
-                                                isUnlocked={isPurchased || course.Price === 0}
-                                                index={index}
-                                                onPlay={setPlayingVideo}
-                                            />
+                                            <CourseContentItem key={item.ID} item={item} isUnlocked={isPurchased || course.Price === 0} index={index} onPlay={setPlayingVideo} />
                                         ))
                                     ) : (
-                                        <div className="text-center py-12 text-gray-500">
-                                            Chưa có bài mới.
-                                        </div>
+                                        <div className="text-center py-12 text-gray-500">Chưa có bài mới.</div>
                                     )}
                                 </div>
                             )}
@@ -652,38 +563,26 @@ export default function CourseDetailPage() {
                                     {scheduleContent.length > 0 ? (
                                         scheduleContent.map((item, index) => (
                                             <div key={item.ID} className="relative pl-8">
-                                                {/* Dot */}
                                                 <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-white border-2 border-blue-500"></div>
-                                                
                                                 <div className="text-sm text-gray-500 font-medium mb-1">
                                                     {(item as any).SubmissionDate || 'Đang cập nhật'}
                                                 </div>
-                                                
                                                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 hover:border-blue-200 transition-colors">
                                                     <h4 className="font-bold text-gray-900 mb-1">{item.Title}</h4>
                                                     <p className="text-xs text-gray-500 line-clamp-2 mb-3">{item.Abstract || 'Nội dung bài học...'}</p>
-                                                    
-                                                    <CourseContentItem 
-                                                        key={item.ID} 
-                                                        item={item} 
-                                                        isUnlocked={isPurchased || course.Price === 0}
-                                                        index={index}
-                                                        onPlay={setPlayingVideo}
-                                                    />
+                                                    <CourseContentItem key={item.ID} item={item} isUnlocked={isPurchased || course.Price === 0} index={index} onPlay={setPlayingVideo} />
                                                 </div>
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="text-center py-12 text-gray-500 pl-8">
-                                            Chưa có lịch phát hành.
-                                        </div>
+                                        <div className="text-center py-12 text-gray-500 pl-8">Chưa có lịch phát hành.</div>
                                     )}
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* RIGHT COLUMN - STICKY SIDEBAR */}
+                    {/* RIGHT COLUMN - Sticky Sidebar */}
                     <div className="lg:w-[380px] flex-shrink-0">
                         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sticky top-6">
                             <div className="text-xl font-bold text-gray-900 mb-4 leading-snug">
@@ -768,7 +667,10 @@ export default function CourseDetailPage() {
                             onClick={() => setPlayingVideo(null)}
                             className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-all backdrop-blur-md"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
                         </button>
                         <iframe 
                             src={getYoutubeEmbedUrl(playingVideo)} 
