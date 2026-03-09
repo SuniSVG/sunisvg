@@ -149,87 +149,81 @@ const getFromAppsScript = async (
 const postToAppsScript = async (
   payload: Record<string, any>,
   retries = 2,
-  timeout = 25000 // Tăng timeout lên 25s để tránh retry khi Apps Script khởi động chậm
+  timeout = 25000
 ): Promise<any> => {
 
   const key = JSON.stringify(payload);
   if (pendingRequests.has(key)) return pendingRequests.get(key)!;
 
   const request = (async () => {
+    let lastError: any;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-
-    try {
-
-      const response = await fetch(APPS_SCRIPT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-        next: { revalidate: 30 }
-      });
-
-      clearTimeout(timer);
-
-      // HTTP error
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `HTTP ${response.status}: ${response.statusText}\n` +
-          errorText.substring(0, 300)
-        );
-      }
-
-      const text = await response.text();
-
-      if (!text || !text.trim()) {
-        throw new Error("Empty response from Apps Script");
-      }
-
-      let result: any;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
 
       try {
-        result = JSON.parse(text);
-      } catch (err: any) {
-        throw new Error(
-          "Invalid JSON from Apps Script:\n" +
-          text.substring(0, 500)
-        );
+        const response = await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+          next: { revalidate: 30 }
+        });
+
+        clearTimeout(timer);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${response.statusText}\n` + errorText.substring(0, 300));
+        }
+
+        const text = await response.text();
+        console.log(`[Apps Script] attempt=${attempt} response:`, text.substring(0, 300));
+
+        if (!text || !text.trim()) throw new Error("Empty response from Apps Script");
+
+        let result: any;
+        try {
+          result = JSON.parse(text);
+        } catch {
+          throw new Error("Invalid JSON:\n" + text.substring(0, 500));
+        }
+
+        if (result.status === "error") {
+          // ✅ Đảm bảo message luôn là string — tránh circular reference gây stack overflow
+          const msg = typeof result.message === 'string'
+            ? result.message
+            : (result.message != null ? String(result.message) : "Apps Script error");
+          throw new Error(msg);
+        }
+
+        return result;
+
+      } catch (error: any) {
+        clearTimeout(timer);
+        lastError = error;
+
+        // Không retry các lỗi logic từ Apps Script (status: error)
+        // Chỉ retry các lỗi mạng/hạ tầng
+        const retryable =
+          error.name === "AbortError" ||
+          error.message?.includes("Failed to fetch") ||
+          error.message?.includes("NetworkError") ||
+          error.message?.includes("HTTP 500") ||
+          error.message?.includes("HTTP 404");
+
+        if (!retryable || attempt >= retries) break;
+
+        await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
       }
-
-      if (result.status === "error") {
-        throw new Error(result.message || "Apps Script error");
-      }
-
-      return result;
-
-    } catch (error: any) {
-
-      const retryable =
-        error.name === "AbortError" ||
-        error.message.includes("Failed to fetch") ||
-        error.message.includes("NetworkError") ||
-        error.message.includes("HTTP 500") ||
-        error.message.includes("HTTP 404");
-
-      if (retries > 0 && retryable) {
-        await new Promise(r => setTimeout(r, 1200));
-        return postToAppsScript(payload, retries - 1, timeout);
-      }
-
-      throw error;
-
-    } finally {
-      pendingRequests.delete(key);
-      clearTimeout(timer);
     }
 
+    throw lastError;
   })();
 
   pendingRequests.set(key, request);
+  request.finally(() => pendingRequests.delete(key));
   return request;
 };
 
@@ -783,7 +777,7 @@ export const purchasePremiumCategory = async (userEmail: string, categoryName: s
             action: 'purchasePremiumCategory',
             userEmail,
             categoryName,
-        }, 0, 5000);
+        }, 0, 30000);
         if (result.status === 'success') {
             return { success: true, newBalance: result.newBalance };
         }

@@ -355,7 +355,8 @@ export function RightSidebar() {
     }
   };
 
-  const cleanCategoryName = (name: string): string => name.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
+const cleanCategoryName = (name: string): string => 
+  (name ?? '').replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
 
   const isCourseOwned = useMemo(() => (course: Course): boolean => {
     if (sharedCourseIds.has(String(course.ID))) return true;
