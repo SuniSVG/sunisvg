@@ -78,18 +78,33 @@ const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeo
       });
       clearTimeout(id);
 
+      // Check for non-OK HTTP status first
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server responded with status ${response.status}: ${response.statusText || 'Unknown Error'}. Response body: ${errorText.substring(0, 200)}...`);
+      }
+
       const text = await response.text();
-      if (!text) throw new Error('Empty response');
+      if (!text.trim()) { // Check for empty or whitespace-only response
+        throw new Error('Empty or whitespace-only response received from server.');
+      }
 
       let result;
-      try { result = JSON.parse(text); } catch { throw new Error('Invalid JSON'); }
+      try {
+        result = JSON.parse(text);
+      } catch (jsonError: any) {
+        // If JSON parsing fails, include the problematic text in the error for debugging
+        throw new Error(`Invalid JSON response from server. Original text: ${text.substring(0, 500)}... Error: ${jsonError.message}`);
+      }
 
-      if (result.status === 'error') return result;
-      if (!response.ok) throw new Error(`Server error ${response.status}`);
+      // Handle application-level errors (e.g., from Google Apps Script)
+      if (result.status === 'error') {
+        throw new Error(result.message || 'An unknown error occurred on the server.');
+      }
 
       return result;
     } catch (error: any) {
-      if (retries > 0 && (error.name === 'AbortError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+      if (retries > 0 && (error.name === 'AbortError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.message.includes('Server responded with status 404'))) {
         await new Promise(r => setTimeout(r, 1200));
         return postToAppsScript(payload, retries - 1, timeout);
       }
