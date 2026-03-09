@@ -9,7 +9,8 @@ import { Account } from '@/types';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { Icon } from '@/components/shared/Icon';
 import { useToast } from '@/contexts/ToastContext';
-import { UserPlus, School, Search, Users, UserCheck, Clock, X, Check, UserX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { UserPlus, School, Search, Users, UserCheck, Clock, X, Check, UserX, ChevronLeft, ChevronRight, Gift } from 'lucide-react';
+import { ShareCourseToFriendModal } from '@/components/ShareCourseToFriendModal';
 
 export default function FriendsPage() {
     const { currentUser, refreshCurrentUser } = useAuth();
@@ -20,6 +21,7 @@ export default function FriendsPage() {
     const [processingEmail, setProcessingEmail] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'community' | 'friends' | 'requests' | 'sent'>('community');
     const [currentPage, setCurrentPage] = useState(1);
+    const [shareModalData, setShareModalData] = useState<{email: string, name: string} | null>(null);
     const ITEMS_PER_PAGE = 20;
 
     useEffect(() => {
@@ -256,17 +258,26 @@ export default function FriendsPage() {
                     )}
 
                     {type === 'friend' && (
-                        <button 
-                            onClick={() => { 
-                                if(confirm('Bạn có chắc muốn hủy kết bạn?')) 
-                                    handleAction('remove', user.Email) 
-                            }} 
-                            disabled={isProcessing} 
-                            className="p-2.5 rounded-xl bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50" 
-                            title="Hủy kết bạn"
-                        >
-                            {isProcessing ? <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin" /> : <UserX className="w-5 h-5" />}
-                        </button>
+                        <>
+                            <button 
+                                onClick={() => setShareModalData({ email: user.Email, name: user['Tên tài khoản'] })}
+                                className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                title="Tặng khóa học"
+                            >
+                                <Gift className="w-5 h-5" />
+                            </button>
+                            <button 
+                                onClick={() => { 
+                                    if(confirm('Bạn có chắc muốn hủy kết bạn?')) 
+                                        handleAction('remove', user.Email) 
+                                }} 
+                                disabled={isProcessing} 
+                                className="p-2.5 rounded-xl bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50" 
+                                title="Hủy kết bạn"
+                            >
+                                {isProcessing ? <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin" /> : <UserX className="w-5 h-5" />}
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
@@ -384,6 +395,15 @@ export default function FriendsPage() {
                     )}
                 </div>
             </div>
+
+            {shareModalData && (
+                <ShareCourseToFriendModal 
+                    isOpen={true} 
+                    onClose={() => setShareModalData(null)} 
+                    friendEmail={shareModalData.email} 
+                    friendName={shareModalData.name} 
+                />
+            )}
         </div>
     );
 }

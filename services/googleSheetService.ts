@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7lqJuiKGIsupCt1WAxEr9YA-uivqxdQF-c4Dt5FXQ5HqE0b5HJzIhj1MlrzoOMzXQ/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwHY4mFPCStYopzNOLSgO2GUts-0HCcmaEiKkTGejL6CIrTv41GAKTZgLtrXrN5H_5c/exec';
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -1322,6 +1322,76 @@ export const removeFriend = async (userEmail: string, friendEmail: string): Prom
             friendEmail
         });
         return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const shareCourseWithFriend = async (payload: {
+    ownerEmail: string;
+    friendEmail: string;
+    courseId: string;
+    courseName: string;
+    message?: string;
+    expiryDays?: number | null;
+}): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'shareCourseWithFriend',
+            ...payload
+        });
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const acceptSharedCourse = async (shareId: string, userEmail: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({ action: 'acceptSharedCourse', shareId, userEmail });
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const rejectSharedCourse = async (shareId: string, userEmail: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({ action: 'rejectSharedCourse', shareId, userEmail });
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const revokeSharedCourse = async (shareId: string, userEmail: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({ action: 'revokeSharedCourse', shareId, userEmail });
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const getSharedCoursesInbox = async (userEmail: string): Promise<{ success: boolean; data?: any[]; error?: string }> => {
+    try {
+        const result = await postToAppsScript({ action: 'getSharedCoursesInbox', userEmail });
+        if (result.status === 'success') {
+            return { success: true, data: result.data };
+        }
+        return { success: false, error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const getSharedCoursesOutbox = async (userEmail: string): Promise<{ success: boolean; data?: any[]; error?: string }> => {
+    try {
+        const result = await postToAppsScript({ action: 'getSharedCoursesOutbox', userEmail });
+        if (result.status === 'success') {
+            return { success: true, data: result.data };
+        }
+        return { success: false, error: result.message };
     } catch (error: any) {
         return { success: false, error: error.message };
     }
