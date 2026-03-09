@@ -223,8 +223,6 @@ const getPurchaseCount = (course: Course) => {
     return (
         <>
             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
-
                 .cp-wrap { font-family: 'DM Sans', sans-serif; min-height: 100vh; background: #f8faf8; }
 
                 /* ── Hero ── */
