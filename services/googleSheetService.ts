@@ -790,6 +790,25 @@ export const purchasePremiumCategory = async (userEmail: string, categoryName: s
     }
 };
 
+export const purchaseCourse = async (email: string, courseId: string): Promise<{ success: boolean; newBalance?: number; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'purchaseCourse',
+            email,
+            courseId,
+        }, 0, 30000);
+        if (result.status === 'success') {
+            return { success: true, newBalance: result.newBalance };
+        }
+        return { success: false, error: result.message };
+    } catch (error: any) {
+        if (typeof window !== 'undefined' && (error.name === 'AbortError' || error.message?.includes('timeout'))) {
+            window.location.reload();
+        }
+        return { success: false, error: error.message };
+    }
+};
+
 const mapBankQuestionToMedicalQuestion = (raw: any): MedicalQuestion => ({
     ID: raw.ID || raw.id || Math.random().toString(36).substring(7),
     Question_Text: raw['Câu hỏi'] || raw.question || '',

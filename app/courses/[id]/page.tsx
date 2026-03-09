@@ -9,7 +9,7 @@ import {
     fetchCourses, 
     fetchPremiumArticles, 
     fetchPurchasedCategories, 
-    purchasePremiumCategory,
+    purchaseCourse,
     fetchAccounts
 } from '@/services/googleSheetService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -300,7 +300,7 @@ export default function CourseDetailPage() {
 
         setIsPurchasing(true);
         try {
-            const result = await purchasePremiumCategory(currentUser.Email, course.Category);
+            const result = await purchaseCourse(currentUser.Email, course.ID);
             if (result.success) {
                 // ✅ Cập nhật state trực tiếp — KHÔNG reload trang
                 setIsPurchased(true);

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/shared/Icon';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { fetchCourses, purchasePremiumCategory, fetchPurchasedCategories } from '@/services/googleSheetService';
+import { fetchCourses, purchaseCourse, fetchPurchasedCategories } from '@/services/googleSheetService';
 import type { Course } from '@/types';
 import Image from 'next/image';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
@@ -771,7 +771,7 @@ export default function Home() {
     if (!ok) return;
     setIsPurchasing(course.ID);
     try {
-      const result = await purchasePremiumCategory(currentUser.Email, course.Category);
+      const result = await purchaseCourse(currentUser.Email, course.ID);
       if (result.success) {
         addToast('Mua thành công!', 'success');
         await refreshCurrentUser({ silent: true });
