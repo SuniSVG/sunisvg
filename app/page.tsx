@@ -811,10 +811,6 @@ export default function Home() {
     }
     const raw = currentUser as any;
     
-    console.log('🔍 [Home] currentUser:', raw);
-    console.log('🔍 [Home] Keys:', Object.keys(raw || {}));
-    console.log('🔍 [Home] Thử đọc "Tiêu chí 1" (qua getField):', getField(raw, 'Tiêu chí 1'));
-
     return [1, 2, 3, 4, 5, 6].map(n => {
       const val = getField(raw, `Tiêu chí ${n}`);
       const { label, value } = parseTieuChi(val);

@@ -137,6 +137,27 @@ export default function ArticleDetail() {
         loadArticle();
     }, [id, isPremium]);
 
+    // SEO Optimization: Cập nhật Title, Meta Tags & Structured Data
+    useEffect(() => {
+        if (article) {
+            // 1. Update Document Title
+            document.title = `${article.Title} - Tài liệu ${article.Category} | SuniSVG`;
+
+            // 2. Update Meta Description (Client-side)
+            const description = article.Abstract 
+                ? article.Abstract.substring(0, 160).replace(/[\n\r]+/g, ' ') + '...'
+                : `Đọc tài liệu ${article.Title} của tác giả ${article.Authors} tại SuniSVG.`;
+            
+            let metaDesc = document.querySelector("meta[name='description']");
+            if (!metaDesc) {
+                metaDesc = document.createElement('meta');
+                metaDesc.setAttribute('name', 'description');
+                document.head.appendChild(metaDesc);
+            }
+            metaDesc.setAttribute('content', description);
+        }
+    }, [article]);
+
     const canViewAdminContent = useMemo(() => 
         currentUser && (currentUser['Danh hiệu'] === 'Admin' || currentUser['Danh hiệu'] === 'Developer'),
         [currentUser]
@@ -206,6 +227,25 @@ export default function ArticleDetail() {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+            {/* Structured Data (JSON-LD) for SEO */}
+            {article && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{
+                        __html: JSON.stringify({
+                            "@context": "https://schema.org",
+                            "@type": "ScholarlyArticle",
+                            "headline": article.Title,
+                            "author": { "@type": "Person", "name": article.Authors },
+                            "datePublished": article.SubmissionDate,
+                            "description": article.Abstract,
+                            "articleSection": article.Category,
+                            "keywords": article.Keywords
+                        })
+                    }}
+                />
+            )}
+
             {/* Breadcrumbs */}
             <nav className="flex items-center gap-2 text-sm text-gray-500 mb-4 overflow-x-auto whitespace-nowrap scrollbar-hide">
                 <Link href="/" className="hover:text-blue-600 transition-colors">Trang chủ</Link>

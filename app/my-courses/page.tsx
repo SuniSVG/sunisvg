@@ -100,9 +100,6 @@ const ownedCourses = allCourses.filter(course => {
 });
 
 // ← THÊM LOG NÀY
-console.log('purchasedSet:', Array.from(purchasedSet));
-console.log('allCourses titles:', allCourses.map(c => cleanStr(c.Title)));
-console.log('ownedCourses:', ownedCourses);
 
 setMyCourses(ownedCourses);
 

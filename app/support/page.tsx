@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
     Search, 
@@ -35,6 +35,20 @@ export default function SupportPage() {
     const [chatMessages, setChatMessages] = useState<{text: string, isUser: boolean}[]>([]);
     const [chatInput, setChatInput] = useState('');
     const [isChatLoading, setIsChatLoading] = useState(false);
+
+    useEffect(() => {
+        document.title = "Trung tâm Hỗ trợ - SuniSVG | FAQ & Liên hệ";
+        
+        const metaDesc = document.querySelector("meta[name='description']") || document.createElement('meta');
+        metaDesc.setAttribute('name', 'description');
+        metaDesc.setAttribute('content', 'Tìm câu trả lời cho các câu hỏi thường gặp (FAQ), hướng dẫn sử dụng, và liên hệ trực tiếp với đội ngũ hỗ trợ của SuniSVG qua chat, email, hotline.');
+        document.head.appendChild(metaDesc);
+
+        const metaKeywords = document.querySelector("meta[name='keywords']") || document.createElement('meta');
+        metaKeywords.setAttribute('name', 'keywords');
+        metaKeywords.setAttribute('content', 'hỗ trợ, support, faq, câu hỏi thường gặp, liên hệ, sunisvg, hướng dẫn');
+        document.head.appendChild(metaKeywords);
+    }, []);
 
     const handleSendChat = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();

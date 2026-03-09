@@ -296,8 +296,6 @@ export default function ProgressPage() {
       try {
         const accounts = await fetchAccounts();
 
-        console.log('🔍 [Progress] Email hiện tại:', email);
-        console.log('🔍 [Progress] Số lượng accounts:', accounts.length);
 
         const acc = accounts.find(
           a => String(a.Email ?? '').trim().toLowerCase() === email.toLowerCase()
@@ -312,8 +310,6 @@ export default function ProgressPage() {
 
         const raw = acc as unknown as Record<string, unknown>;
 
-        console.log('🔍 [Progress] Account:', raw);
-        console.log('🔍 [Progress] Keys:', Object.keys(raw));
 
         const sheetParsed = [1, 2, 3, 4, 5, 6].map(n =>
           parseTieuChi(getField(raw, `Tiêu chí ${n}`))
@@ -373,8 +369,6 @@ export default function ProgressPage() {
       const currentScore = updated[index].value ?? 0;
       const result = await updateCriterion(email, index + 1, label, currentScore);
 
-      // Log toàn bộ result để debug
-      console.log('🔍 [handleSave] updateCriterion result:', JSON.stringify(result));
 
       if (result?.success) {
         setSaveMsg('Đã lưu!');

@@ -197,6 +197,13 @@ export default function CourseDetailPage() {
                 setGroupedContent(groups);
                 setStageOrder(order);
 
+                // SEO: Update document title dynamically
+                if (foundCourse) {
+                    document.title = `${foundCourse.Title} - Tài liệu & Khóa học SuniSVG`;
+                    // Optional: You could also update meta description via DOM if needed for social sharing snippets
+                    // though Server Side Rendering is preferred for that.
+                }
+
                 if (currentUser) {
                     let purchased = false;
                     
@@ -366,7 +373,7 @@ export default function CourseDetailPage() {
                         {course.ImageURL ? (
                             <Image 
                                 src={convertGoogleDriveUrl(course.ImageURL)} 
-                                alt={course.Title} 
+                                alt={`Khóa học ${course.Title} - Tài liệu ôn thi HSG và Đại học`}
                                 fill
                                 className="object-cover"
                                 referrerPolicy="no-referrer"
@@ -387,7 +394,7 @@ export default function CourseDetailPage() {
                         
                         {/* 1. Intro Section */}
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-6">Giới thiệu</h2>
+                            <h1 className="text-2xl font-bold text-gray-900 mb-6">Giới thiệu khóa học {course.Title}</h1>
                             <p className="text-gray-600 leading-relaxed mb-8 whitespace-pre-line">
                                 {course.Abstract || 'Chương trình học được thiết kế bài bản, bám sát cấu trúc đề thi, giúp học sinh nắm vững kiến thức từ cơ bản đến nâng cao.'}
                             </p>
@@ -432,7 +439,7 @@ export default function CourseDetailPage() {
                             </div>
 
                             <div className="mt-8 pt-8 border-t border-gray-100">
-                                <h3 className="font-bold text-gray-900 mb-6">Mục tiêu chương trình học</h3>
+                                <h2 className="font-bold text-gray-900 mb-6 text-lg">Mục tiêu chương trình học</h2>
                                 <ul className="space-y-4">
                                     {(course.Goal ? course.Goal.split(',') : (teacher?.Goal ? teacher.Goal.split(',') : [
                                         'Hệ thống toàn bộ kiến thức trong chương trình học từ cơ bản đến nâng cao',
@@ -482,7 +489,7 @@ export default function CourseDetailPage() {
 
                         {/* 2. Teacher Section */}
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-6">Giáo viên</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-6">Thông tin Giáo viên</h2>
                             <div className="flex items-start gap-6">
                                 <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-blue-100 flex-shrink-0 bg-gray-50 flex items-center justify-center relative">
                                     {teacher?.AvatarURL ? (
@@ -560,7 +567,7 @@ export default function CourseDetailPage() {
 
                         {/* 4. Syllabus Section (De cuong) */}
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
-                            <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Trọn bộ khóa học </h2>
+                            <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Trọn bộ tài liệu & bài giảng</h2>
                             
                             <div className="flex justify-center gap-4 mb-8">
                                 <button 
@@ -679,9 +686,9 @@ export default function CourseDetailPage() {
                     {/* RIGHT COLUMN - STICKY SIDEBAR */}
                     <div className="lg:w-[380px] flex-shrink-0">
                         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sticky top-6">
-                            <h1 className="text-xl font-bold text-gray-900 mb-4 leading-snug">
+                            <div className="text-xl font-bold text-gray-900 mb-4 leading-snug">
                                 {course.Title}
-                            </h1>
+                            </div>
                             
                             <div className="flex items-baseline gap-3 mb-6">
                                 <span className="text-3xl font-extrabold text-red-600">

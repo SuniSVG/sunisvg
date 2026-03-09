@@ -1,6 +1,5 @@
-'use client';
-
 import React from 'react';
+import type { Metadata } from 'next';
 import { Icon } from '@/components/shared/Icon';
 import Link from 'next/link';
 
@@ -362,6 +361,12 @@ const typeConfig = {
     fix: { label: 'Sửa lỗi', color: 'bg-red-100 text-red-700', icon: 'tool' },
     improvement: { label: 'Cải thiện', color: 'bg-blue-100 text-blue-700', icon: 'zap' },
     removal: { label: 'Đã gỡ bỏ', color: 'bg-gray-100 text-gray-600', icon: 'trash' },
+};
+
+export const metadata: Metadata = {
+    title: 'Nhật ký thay đổi - SuniSVG | Cập nhật tính năng và tài liệu mới',
+    description: 'Theo dõi các bản cập nhật mới nhất của nền tảng học tập SuniSVG. Tính năng mới, sửa lỗi và cải thiện hiệu năng cho hệ thống tài liệu và khóa học.',
+    keywords: ['nhật ký thay đổi', 'changelog sunisvg', 'cập nhật sunisvg', 'tính năng mới'],
 };
 
 export default function ChangelogPage() {

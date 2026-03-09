@@ -195,6 +195,11 @@ export default function VideoLibraryPage() {
         fetchData();
     }, [activeSubject, currentSubjectChannelIds]);
 
+    // SEO: Update title based on selection
+    useEffect(() => {
+        document.title = `Co-Learning: ${activeSubject} - ${activeTopic} | SuniSVG`;
+    }, [activeSubject, activeTopic]);
+
     // Lấy danh sách các chủ đề (Topics) duy nhất từ video hiện có
     const topics = useMemo(() => {
         const cats = new Set(videos.map(v => v.category));
@@ -242,10 +247,10 @@ export default function VideoLibraryPage() {
                 {/* 1. Header & Subject Tabs */}
                 <div className="text-center mb-12">
                     <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                        Góc học tập Co-Learning
+                        Góc học tập Co-Learning: Thư viện Video & Tài liệu
                     </h1>
                     <p className="text-gray-500 max-w-2xl mx-auto mb-8">
-                        Tổng hợp bài giảng, luyện đề từ các kênh YouTube giáo dục hàng đầu.
+                        Tổng hợp bài giảng, luyện đề {activeSubject} từ các kênh YouTube giáo dục hàng đầu.
                     </p>
 
                     {/* Subject Tabs */}
@@ -285,7 +290,7 @@ export default function VideoLibraryPage() {
                                             <div className="w-full h-full rounded-full overflow-hidden bg-white relative">
                                                 <Image 
                                                     src={channel.avatarUrl} 
-                                                    alt={channel.title} 
+                                                    alt={`Kênh học tập ${channel.title}`} 
                                                     fill 
                                                     className="object-cover"
                                                     unoptimized // Dùng unoptimized nếu domain yt3.ggpht.com chưa config
@@ -361,7 +366,7 @@ export default function VideoLibraryPage() {
                                 <div className="relative aspect-video overflow-hidden bg-gray-100">
                                     <Image
                                         src={video.thumbnail}
-                                        alt={video.title}
+                                        alt={`Video bài giảng: ${video.title}`}
                                         fill
                                         className="object-cover group-hover:scale-105 transition-transform duration-500"
                                         unoptimized

@@ -873,6 +873,7 @@ export default function ClassDetailPage() {
         setClassInfo(result.info);
         setMembers(result.members.sort((a, b) => a.name.localeCompare(b.name)));
         setQuizzes(result.quizzes.sort((a, b) => new Date(b.dateAssigned).getTime() - new Date(a.dateAssigned).getTime()));
+        document.title = `${result.info.ClassName} - Lớp học SuniSVG`;
       } else {
         setError('Không tìm thấy thông tin lớp học.');
       }

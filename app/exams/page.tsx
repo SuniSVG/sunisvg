@@ -267,6 +267,19 @@ export default function ExamsDashboard() {
     };
 
     useEffect(() => {
+        document.title = "Luyện đề thi Online - Ngân hàng đề thi THPT, HSA, TSA | SuniSVG";
+        
+        const metaDesc = document.querySelector("meta[name='description']") || document.createElement('meta');
+        metaDesc.setAttribute('name', 'description');
+        metaDesc.setAttribute('content', 'Hệ thống luyện đề thi online miễn phí và premium. Luyện tập với hàng ngàn câu hỏi trắc nghiệm các môn Toán, Lý, Hóa, Anh, Sinh, bám sát cấu trúc đề thi THPT Quốc Gia, HSA, TSA.');
+        document.head.appendChild(metaDesc);
+
+        const metaKeywords = document.querySelector("meta[name='keywords']") || document.createElement('meta');
+        metaKeywords.setAttribute('name', 'keywords');
+        metaKeywords.setAttribute('content', 'luyện đề online, thi thử online, đề thi thpt quốc gia, đề thi hsa, đề thi tsa, ngân hàng câu hỏi, trắc nghiệm online');
+        document.head.appendChild(metaKeywords);
+
+
         const loadData = async () => {
             setIsLoading(true);
             try {

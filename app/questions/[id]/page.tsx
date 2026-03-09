@@ -132,7 +132,6 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     const handleImageError = () => {
         // Try next URL format
         if (currentUrlIndex < possibleUrls.length - 1) {
-            console.log(`Trying fallback URL ${currentUrlIndex + 1} for image ${index}`);
             setCurrentUrlIndex(prev => prev + 1);
             setIsLoading(true);
         } else {

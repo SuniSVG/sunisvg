@@ -1,6 +1,5 @@
-'use client';
-
 import React from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { 
     ArrowLeft, 
@@ -16,6 +15,12 @@ import {
     Clock,
     FileCheck
 } from 'lucide-react';
+
+export const metadata: Metadata = {
+    title: 'Quy trình Mua hàng - Hướng dẫn chi tiết | SuniSVG',
+    description: 'Hướng dẫn chi tiết quy trình mua hàng tại SuniSVG: từ tìm kiếm, thêm vào giỏ hàng, thanh toán qua ví và tải file SVG ngay lập tức.',
+    keywords: ['quy trình mua hàng', 'hướng dẫn mua svg', 'thanh toán sunisvg', 'tải file svg', 'mua khóa học', 'mua tài liệu'],
+};
 
 export default function BuyingProcessPage() {
     return (

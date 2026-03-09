@@ -45,6 +45,7 @@ export default function SubmitArticlePage() {
             // Optional: Redirect if strict auth is needed immediately
             // router.push('/login');
         }
+        document.title = "Đăng bài viết & Tài liệu mới - SuniSVG";
     }, [currentUser, router]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -121,10 +122,8 @@ export default function SubmitArticlePage() {
                 fileInfo: fileInfo
             };
 
-            console.log('Submitting article:', articleData);
 
             const result = await addArticle(articleData, currentUser.Email);
-            console.log('Full result:', JSON.stringify(result));
 
             if (result.success) {
                 addToast('Bài viết đã được gửi duyệt thành công!', 'success');

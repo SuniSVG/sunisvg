@@ -24,7 +24,6 @@ export async function subscribeAllChannels() {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
-      console.log(`[Webhook] ${channel.subject}: ${res.status}`);
       return res.status;
     })
   );
