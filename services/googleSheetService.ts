@@ -718,7 +718,7 @@ export const fetchPurchasedCategories = async (email: string): Promise<{ Categor
         return rawPurchases
           .filter((p: any) => String(p.UserEmail || '').trim().toLowerCase() === normalizedEmail)
           .map((p: any) => ({
-            CategoryName: String(p.CategoryName || '').trim(),
+            CategoryName: String(p.CategoryName || p.CourseID || p.CourseId || '').trim(),
             PurchaseDate: String(p.PurchaseDate || p.Timestamp || '').trim(),
           }));
       }
@@ -726,7 +726,10 @@ export const fetchPurchasedCategories = async (email: string): Promise<{ Categor
     }
     
     if (result.status === 'success' && Array.isArray(result.categories)) {
-      return result.categories;
+      return result.categories.map((c: any) => ({
+          CategoryName: String(c.CategoryName || c.CourseID || c.CourseId || '').trim(),
+          PurchaseDate: String(c.PurchaseDate || c.Timestamp || '').trim()
+      }));
     }
     return [];
   } catch (error) {

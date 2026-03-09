@@ -739,6 +739,9 @@ const cleanCategoryName = (name: string): string =>
   (name ?? '').replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
 
   const isCourseOwned = useCallback((course: Course): boolean => {
+    const cleanId = String(course.ID || '').trim();
+    if (purchasedCategories.has(cleanId)) return true;
+
     for (const pc of purchasedCategories) {
       const cleanPc = cleanCategoryName(pc);
       if (cleanPc === cleanCategoryName(course.Category || '') ||
