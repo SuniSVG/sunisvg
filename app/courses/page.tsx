@@ -31,6 +31,7 @@ const CourseCard = React.memo<{ course: Course; index: number; purchaseCount?: n
                         src={imageUrl}
                         alt={course.Title}
                         fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
                         referrerPolicy="no-referrer"
                     />
@@ -118,19 +119,27 @@ export default function CoursesPage() {
     const loadCourses = useCallback(async (force: boolean = false) => {
         setIsLoading(true);
         try {
-            const [data, stats] = await Promise.all([
-                fetchCourses(),
-                fetchPurchaseStats()
-            ]);
+            // Tách request để tránh việc thống kê mua hàng (Purchases) làm chậm hiển thị khóa học (Courses)
+            // Đặc biệt khi hệ thống đang xử lý giao dịch mua
+            const data = await fetchCourses();
             const processed = data
                 .filter(c => c.Title && String(c.Title).trim() !== '')
                 .map((c, i) => ({ ...c, ID: c.ID || i.toString() }));
             setCourses(processed);
-            setPurchaseStats(stats);
+            setIsLoading(false); // Hiển thị nội dung chính ngay lập tức
+
+            // Load thống kê sau (không chặn UI)
+            try {
+                const stats = await fetchPurchaseStats();
+                setPurchaseStats(stats);
+            } catch (e) {
+                console.warn('Failed to load purchase stats', e);
+            }
         } catch (err) {
             setError('Không thể tải danh sách khóa học. Vui lòng thử lại sau.');
-        } finally {
             setIsLoading(false);
+        } finally {
+            // Loading state handled above
         }
     }, []);
 

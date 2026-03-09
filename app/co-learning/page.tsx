@@ -292,6 +292,7 @@ export default function VideoLibraryPage() {
                                                     src={channel.avatarUrl} 
                                                     alt={`Kênh học tập ${channel.title}`} 
                                                     fill 
+                                                    sizes="64px"
                                                     className="object-cover"
                                                     unoptimized // Dùng unoptimized nếu domain yt3.ggpht.com chưa config
                                                 />
@@ -368,6 +369,7 @@ export default function VideoLibraryPage() {
                                         src={video.thumbnail}
                                         alt={`Video bài giảng: ${video.title}`}
                                         fill
+                                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                                         className="object-cover group-hover:scale-105 transition-transform duration-500"
                                         unoptimized
                                     />

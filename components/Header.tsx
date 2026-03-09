@@ -121,6 +121,7 @@ export default function Header() {
                         src={convertGoogleDriveUrl(currentUser.AvatarURL)}
                         alt={currentUser['Tên tài khoản']}
                         fill
+                        sizes="28px"
                         className="object-cover"
                         referrerPolicy="no-referrer"
                       />

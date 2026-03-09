@@ -237,6 +237,7 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                                     src={convertGoogleDriveUrl(currentUser.AvatarURL)}
                                     alt={currentUser['Tên tài khoản']}
                                     fill
+                                    sizes="64px"
                                     className="object-cover"
                                     referrerPolicy="no-referrer"
                                 />

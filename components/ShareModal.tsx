@@ -89,6 +89,7 @@ export const ShareModal = ({
                                                 src={thumbnail} 
                                                 alt="Thumbnail" 
                                                 fill 
+                                                sizes="64px"
                                                 className="object-cover"
                                                 referrerPolicy="no-referrer"
                                             />

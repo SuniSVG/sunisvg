@@ -290,7 +290,7 @@ export function RightSidebar() {
     const startPolling = () => {
       interval = setInterval(() => {
         if (document.visibilityState === 'visible') fetchLivePosts();
-      }, 15000);
+      }, 8000);
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -1316,6 +1316,7 @@ export function RightSidebar() {
                               src={convertGoogleDriveUrl(course.ImageURL)}
                               alt={course.Title}
                               fill
+                              sizes="52px"
                               className="object-cover"
                               referrerPolicy="no-referrer"
                             />
@@ -1354,6 +1355,7 @@ export function RightSidebar() {
                               src={convertGoogleDriveUrl(course.ImageURL)}
                               alt={course.Title}
                               fill
+                              sizes="52px"
                               className="object-cover"
                               referrerPolicy="no-referrer"
                             />
@@ -1445,7 +1447,7 @@ export function RightSidebar() {
                   className="post-item group"
                 >
                   <Link href={profileLink} onClick={(e) => e.stopPropagation()} className="post-avatar self-start" style={{ background: !avatarUrl ? `linear-gradient(135deg, var(--a1), var(--a2))` : 'transparent' }} ref={!avatarUrl ? el => { if (el) { const colors = [ ['#10b981', '#059669'], ['#f97316', '#ea580c'], ['#34d399', '#10b981'], ['#fbbf24', '#f97316'], ['#6ee7b7', '#34d399'], ]; const [a1, a2] = colors[idx % colors.length]; el.style.setProperty('--a1', a1); el.style.setProperty('--a2', a2); } } : null}>
-                    {avatarUrl ? (<div className="relative w-full h-full overflow-hidden rounded-[10px]"><Image src={convertGoogleDriveUrl(avatarUrl)} alt={post.AuthorName} fill className="object-cover" referrerPolicy="no-referrer" /></div>) : (post.AuthorName.charAt(0).toUpperCase())}
+                    {avatarUrl ? (<div className="relative w-full h-full overflow-hidden rounded-[10px]"><Image src={convertGoogleDriveUrl(avatarUrl)} alt={post.AuthorName} fill sizes="32px" className="object-cover" referrerPolicy="no-referrer" /></div>) : (post.AuthorName.charAt(0).toUpperCase())}
                   </Link>
                   <div className="min-w-0 flex-1 flex flex-col">
                     <p className="post-title">{post.Title}</p>
@@ -1467,7 +1469,7 @@ export function RightSidebar() {
                                     <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                                         {images.map((url, i) => (
                                             <div key={i} className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
-                                                <Image src={convertGoogleDriveUrl(url.split('#')[0])} alt="" fill className="object-contain" referrerPolicy="no-referrer" />
+                                                <Image src={convertGoogleDriveUrl(url.split('#')[0])} alt="" fill sizes="150px" className="object-contain" referrerPolicy="no-referrer" />
                                             </div>
                                         ))}
                                     </div>

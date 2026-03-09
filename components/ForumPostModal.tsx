@@ -167,6 +167,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                   src={convertGoogleDriveUrl(postAuthorAccount.AvatarURL)}
                   alt={post.AuthorName}
                   fill
+                  sizes="40px"
                   className="object-cover"
                   referrerPolicy="no-referrer"
                 />
@@ -260,6 +261,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                               src={convertGoogleDriveUrl(commenterAccount.AvatarURL)}
                               alt={comment.AuthorName}
                               fill
+                              sizes="32px"
                               className="object-cover"
                               referrerPolicy="no-referrer"
                             />

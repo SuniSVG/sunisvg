@@ -94,6 +94,7 @@ export default function AvatarUploader({
             src={preview}
             alt="Avatar"
             fill
+            sizes="112px"
             className="object-cover"
             onError={() => setImgError(true)}
             referrerPolicy="no-referrer"

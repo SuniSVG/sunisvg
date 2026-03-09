@@ -2,8 +2,10 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwiE9Xw7d49HrXbsVouq8r8aVr36bSf8dzwldSp8HovqeyMQhZyqbLADegq15YDAC3i/exec';
-
+const APPS_SCRIPT_URL =
+  typeof window === "undefined"
+    ? "http://localhost:3000/api/apps-script"
+    : "/api/apps-script";
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const MAX_LOCAL_CACHE = 4_000_000; // 4MB limit for local storage
@@ -62,56 +64,87 @@ async function getLocalCache<T>(key: string): Promise<CacheEntry<T> | null> {
 const pendingRequests = new Map<string, Promise<any>>();
 
 // --- CORE REQUEST ---
-const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeout = 60000): Promise<any> => {
+const postToAppsScript = async (
+  payload: Record<string, any>,
+  retries = 2,
+  timeout = 25000 // Tăng timeout lên 25s để tránh retry khi Apps Script khởi động chậm
+): Promise<any> => {
+
   const key = JSON.stringify(payload);
   if (pendingRequests.has(key)) return pendingRequests.get(key)!;
 
   const request = (async () => {
+
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
+    const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
+
       const response = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
         body: JSON.stringify(payload),
         signal: controller.signal,
+        next: { revalidate: 30 }
       });
-      clearTimeout(id);
 
-      // Check for non-OK HTTP status first
+      clearTimeout(timer);
+
+      // HTTP error
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Server responded with status ${response.status}: ${response.statusText || 'Unknown Error'}. Response body: ${errorText.substring(0, 200)}...`);
+        throw new Error(
+          `HTTP ${response.status}: ${response.statusText}\n` +
+          errorText.substring(0, 300)
+        );
       }
 
       const text = await response.text();
-      if (!text.trim()) { // Check for empty or whitespace-only response
-        throw new Error('Empty or whitespace-only response received from server.');
+
+      if (!text || !text.trim()) {
+        throw new Error("Empty response from Apps Script");
       }
 
-      let result;
+      let result: any;
+
       try {
         result = JSON.parse(text);
-      } catch (jsonError: any) {
-        // If JSON parsing fails, include the problematic text in the error for debugging
-        throw new Error(`Invalid JSON response from server. Original text: ${text.substring(0, 500)}... Error: ${jsonError.message}`);
+      } catch (err: any) {
+        throw new Error(
+          "Invalid JSON from Apps Script:\n" +
+          text.substring(0, 500)
+        );
       }
 
-      // Handle application-level errors (e.g., from Google Apps Script)
-      if (result.status === 'error') {
-        throw new Error(result.message || 'An unknown error occurred on the server.');
+      if (result.status === "error") {
+        throw new Error(result.message || "Apps Script error");
       }
 
       return result;
+
     } catch (error: any) {
-      if (retries > 0 && (error.name === 'AbortError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.message.includes('Server responded with status 404'))) {
+
+      const retryable =
+        error.name === "AbortError" ||
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("NetworkError") ||
+        error.message.includes("HTTP 500") ||
+        error.message.includes("HTTP 404");
+
+      if (retries > 0 && retryable) {
         await new Promise(r => setTimeout(r, 1200));
         return postToAppsScript(payload, retries - 1, timeout);
       }
+
       throw error;
+
     } finally {
       pendingRequests.delete(key);
+      clearTimeout(timer);
     }
+
   })();
 
   pendingRequests.set(key, request);
@@ -119,46 +152,86 @@ const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeo
 };
 
 // --- REVALIDATION TRACKER ---
+// --- GENERIC FETCH (CACHE + SWR) ---
 const revalidationRequests = new Map<string, Promise<any>>();
 
-// --- GENERIC FETCH (CACHE + SWR) ---
 const fetchDataFromAppsScript = async <T>(
   sheetName: string,
-  ignoreCache: boolean = false,
-  skipLocalCache: boolean = false  // ← thêm tham số mới
+  ignoreCache = false,
+  skipLocalCache = false
 ): Promise<T[]> => {
+
   const cacheKey = `post:${sheetName}`;
+
   let cached = getMemoryCache<T[]>(cacheKey);
 
-  if (!cached && !ignoreCache && !skipLocalCache) {  // ← thêm điều kiện
+  if (!cached && !ignoreCache && !skipLocalCache) {
     cached = await getLocalCache<T[]>(cacheKey);
     if (cached) setMemoryCache(cacheKey, cached);
   }
 
   if (cached && !ignoreCache) {
+
     const stale = Date.now() - cached.timestamp > CACHE_DURATION;
+
     if (stale && !revalidationRequests.has(cacheKey)) {
-      const p = postToAppsScript({ action: 'getSheetData', sheetName })
-        .then(res => {
-          if (res.status === 'success' && Array.isArray(res.data)) {
-            const entry = { data: res.data, timestamp: Date.now() };
-            setMemoryCache(cacheKey, entry);
-            if (!skipLocalCache) setLocalCache(cacheKey, entry);  // ← thêm điều kiện
+
+      const revalidate = postToAppsScript({
+        action: "getSheetData",
+        sheetName
+      })
+      .then(res => {
+
+        if (res.status === "success" && Array.isArray(res.data)) {
+
+          const entry = {
+            data: res.data,
+            timestamp: Date.now()
+          };
+
+          setMemoryCache(cacheKey, entry);
+
+          if (!skipLocalCache) {
+            setLocalCache(cacheKey, entry);
           }
-        })
-        .finally(() => revalidationRequests.delete(cacheKey));
-      revalidationRequests.set(cacheKey, p);
+
+        }
+
+      })
+      .finally(() => {
+        revalidationRequests.delete(cacheKey);
+      });
+
+      revalidationRequests.set(cacheKey, revalidate);
+
     }
+
     return cached.data;
+
   }
 
-  const result = await postToAppsScript({ action: 'getSheetData', sheetName });
-  if (result.status === 'success' && Array.isArray(result.data)) {
-    const entry = { data: result.data, timestamp: Date.now() };
+  const result = await postToAppsScript({
+    action: "getSheetData",
+    sheetName
+  });
+
+  if (result.status === "success" && Array.isArray(result.data)) {
+
+    const entry = {
+      data: result.data,
+      timestamp: Date.now()
+    };
+
     setMemoryCache(cacheKey, entry);
-    if (!skipLocalCache) await setLocalCache(cacheKey, entry);  // ← thêm điều kiện
+
+    if (!skipLocalCache) {
+      await setLocalCache(cacheKey, entry);
+    }
+
     return result.data as T[];
+
   }
+
   throw new Error(result.message || `Failed to fetch sheet: ${sheetName}`);
 };
 
@@ -586,12 +659,15 @@ export const purchasePremiumCategory = async (userEmail: string, categoryName: s
             action: 'purchasePremiumCategory',
             userEmail,
             categoryName,
-        });
+        }, 0, 5000);
         if (result.status === 'success') {
             return { success: true, newBalance: result.newBalance };
         }
         return { success: false, error: result.message };
     } catch (error: any) {
+        if (typeof window !== 'undefined' && (error.name === 'AbortError' || error.message?.includes('timeout'))) {
+            window.location.reload();
+        }
         return { success: false, error: error.message };
     }
 };
@@ -966,8 +1042,18 @@ export const fetchCourses = async (): Promise<Course[]> => {
     }
 };
 
-export const fetchForumPosts = async (ignoreCache: boolean = false): Promise<ForumPost[]> => {
-const rawPosts = await fetchDataFromAppsScript<any>('Forum_Posts', ignoreCache);
+export const getCourseById = async (id: string): Promise<Course | null> => {
+    if (!id) return null;
+    // Tận dụng cache của fetchCourses thay vì gọi API riêng lẻ
+    // Điều này giúp tránh việc fetch lại toàn bộ sheet nếu đã có cache
+    const courses = await fetchCourses();
+    // Tìm khóa học trong danh sách đã cache
+    const course = courses.find(c => String(c.ID).trim() === String(id).trim());
+    return course || null;
+};
+
+export const fetchForumPosts = async (ignoreCache: boolean = false, skipLocalCache: boolean = false): Promise<ForumPost[]> => {
+const rawPosts = await fetchDataFromAppsScript<any>('Forum_Posts', ignoreCache, skipLocalCache);
 return rawPosts.map((p: any) => ({
     ID: String(p.ID || '').trim(),
     Title: String(p.Title || '').trim().replace(/^\\\|\//, ''),
@@ -982,8 +1068,8 @@ return rawPosts.map((p: any) => ({
 }));
 };
 
-export const fetchForumComments = async (ignoreCache: boolean = false): Promise<ForumComment[]> => {
-const rawComments = await fetchDataFromAppsScript<any>('Forum_Comments', ignoreCache);
+export const fetchForumComments = async (ignoreCache: boolean = false, skipLocalCache: boolean = false): Promise<ForumComment[]> => {
+const rawComments = await fetchDataFromAppsScript<any>('Forum_Comments', ignoreCache, skipLocalCache);
 return rawComments.map((c: any) => ({
     ID: String(c.ID || '').trim(),
     PostID: String(c.PostID || '').trim(),
@@ -1647,9 +1733,12 @@ export const purchaseCourse = async (email: string, courseId: string): Promise<{
             action: 'updateOwnedCourses',
             email: email,
             courseId: courseId
-        });
+        }, 0, 5000);
         return { success: result.status === 'success', error: result.message };
     } catch (error: any) {
+        if (typeof window !== 'undefined' && (error.name === 'AbortError' || error.message?.includes('timeout'))) {
+            window.location.reload();
+        }
         return { success: false, error: error.message };
     }
 };

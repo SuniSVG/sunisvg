@@ -81,7 +81,7 @@ export const ShareCourseModal: React.FC<ShareCourseModalProps> = ({ isOpen, onCl
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-center gap-3">
                         <div className="w-12 h-12 rounded-md bg-green-100 overflow-hidden relative shrink-0">
-                            {course.ImageURL && <Image src={convertGoogleDriveUrl(course.ImageURL)} alt={course.Title} fill className="object-cover" />}
+                            {course.ImageURL && <Image src={convertGoogleDriveUrl(course.ImageURL)} alt={course.Title} fill sizes="48px" className="object-cover" />}
                         </div>
                         <p className="font-bold text-sm text-gray-800 line-clamp-2">{course.Title}</p>
                     </div>

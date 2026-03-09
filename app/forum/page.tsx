@@ -418,6 +418,7 @@ export default function ForumPage() {
                                                                             src={convertGoogleDriveUrl(avatarUrl)}
                                                                             alt={post.AuthorName}
                                                                             fill
+                                                                            sizes="36px"
                                                                             className="object-cover"
                                                                             referrerPolicy="no-referrer"
                                                                             priority
@@ -467,6 +468,7 @@ export default function ForumPage() {
                                                                                     src={convertGoogleDriveUrl(url.split('#')[0].trim())}
                                                                                     alt=""
                                                                                     fill
+                                                                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                                                                     className="object-cover"
                                                                                     referrerPolicy="no-referrer"
                                                                                     priority={i === 0}
@@ -586,6 +588,7 @@ export default function ForumPage() {
                             src={convertGoogleDriveUrl(lightbox.urls[lightbox.index].trim())}
                             alt=""
                             fill
+                            sizes="100vw"
                             className="object-contain"
                             referrerPolicy="no-referrer"
                         />
