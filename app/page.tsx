@@ -735,8 +735,8 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [exams]);
 
-  const cleanCategoryName = useCallback((name: string) =>
-    name.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim(), []);
+const cleanCategoryName = (name: string): string => 
+  (name ?? '').replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
 
   const isCourseOwned = useCallback((course: Course): boolean => {
     for (const pc of purchasedCategories) {
@@ -773,13 +773,19 @@ export default function Home() {
     try {
       const result = await purchaseCourse(currentUser.Email, course.ID);
       if (result.success) {
-        addToast('Mua thành công!', 'success');
-        await refreshCurrentUser({ silent: true });
-        const now = new Date();
-        const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
-        setPurchasedCategories(prev => new Set(prev).add(course.Category));
-        setPurchaseDates(prev => ({ ...prev, [course.Category]: dateStr }));
-      } else addToast(result.error || 'Giao dịch thất bại.', 'error');
+        addToast('Đăng ký thành công!', 'success');
+        // Optimistically update the state
+        const newPurchased = new Set(purchasedCategories);
+        newPurchased.add(String(course.ID).trim().toLowerCase());
+        if (course.Category) {
+            newPurchased.add(cleanCategoryName(course.Category).toLowerCase());
+        }
+        setPurchasedCategories(newPurchased);
+        // Refresh user data in background to get new balance
+        refreshCurrentUser({ silent: true });
+      } else {
+        addToast(result.error || 'Giao dịch thất bại.', 'error');
+      }
     } catch (e: any) { addToast(e.message || 'Lỗi kết nối.', 'error'); }
     finally { setIsPurchasing(null); }
   };

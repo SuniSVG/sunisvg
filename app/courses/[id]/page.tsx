@@ -9,8 +9,9 @@ import {
     fetchCourses, 
     fetchPremiumArticles, 
     fetchPurchasedCategories, 
-    purchaseCourse,
-    fetchAccounts
+    purchaseCourse, // This is correct
+    fetchAccounts,
+    getSharedCoursesInbox
 } from '@/services/googleSheetService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -118,6 +119,7 @@ export default function CourseDetailPage() {
     const [contentItems, setContentItems] = useState<ScientificArticle[]>([]);
     const [isPurchased, setIsPurchased] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [isShared, setIsShared] = useState(false);
     const [isPurchasing, setIsPurchasing] = useState(false);
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [playingVideo, setPlayingVideo] = useState<string | null>(null);
@@ -133,48 +135,61 @@ export default function CourseDetailPage() {
     // Helper: kiểm tra purchased từ danh sách + owned string
     const checkPurchased = (
         foundCourse: Course,
-        purchasedCats: { CategoryName: string }[],
-        ownedString?: string
-    ): boolean => {
-        const courseCategory = cleanStr(foundCourse.Category || '');
-        const courseTitle    = cleanStr(foundCourse.Title || '');
-        const courseId       = cleanStr(String(foundCourse.ID || ''));
+        purchasedItems: { CategoryName: string }[],
+        ownedString?: string,
+        sharedIds?: Set<string>
+    ): { owned: boolean, shared: boolean } => {
+        if (!foundCourse) return { owned: false, shared: false };
 
-        const matches = (record: string) =>
-            record && (
-                record === courseId ||
-                record === courseCategory ||
-                record === courseTitle ||
-                courseTitle.includes(record) ||
-                courseCategory.includes(record) ||
-                record.includes(courseTitle) ||
-                record.includes(courseCategory)
-            );
-
-        // 1. Từ Purchases API
-        for (const pc of purchasedCats) {
-            if (matches(cleanStr(pc.CategoryName))) return true;
+        const courseId = String(foundCourse.ID || '').trim();
+        if (sharedIds && sharedIds.has(courseId)) {
+            return { owned: true, shared: true };
         }
 
-        // 2. Từ cột Owned trong account (fallback)
+        const cleanCourseCategory = cleanStr(foundCourse.Category || '');
+        const cleanCourseTitle = cleanStr(foundCourse.Title || '');
+        
+        const purchasedSet = new Set<string>();
+        
+        // From `Purchases` sheet
+        purchasedItems.forEach(item => {
+            if (item.CategoryName) purchasedSet.add(cleanStr(item.CategoryName));
+        });
+
+        // From `Owned` column in `Accounts` sheet
         if (ownedString) {
-            for (const item of ownedString.split(',')) {
-                if (matches(cleanStr(item))) return true;
-            }
+            ownedString.split(',').forEach(item => {
+                if (item) purchasedSet.add(cleanStr(item));
+            });
         }
 
-        return false;
+        // Now check for ownership with priorities
+        // 1. Exact ID match
+        if (purchasedSet.has(courseId.toLowerCase())) {
+            return { owned: true, shared: false };
+        }
+        // 2. Exact Category match
+        if (cleanCourseCategory && purchasedSet.has(cleanCourseCategory)) {
+            return { owned: true, shared: false };
+        }
+        // 3. Exact Title match (legacy)
+        if (cleanCourseTitle && purchasedSet.has(cleanCourseTitle)) {
+            return { owned: true, shared: false };
+        }
+
+        return { owned: false, shared: false };
     };
 
     useEffect(() => {
         const loadData = async () => {
             setIsLoading(true);
             try {
-                const [courses, allArticles, purchasedCats, accounts] = await Promise.all([
+                const [courses, allArticles, purchasedCats, accounts, sharedInboxRes] = await Promise.all([
                     fetchCourses(),
                     fetchPremiumArticles(),
                     currentUser ? fetchPurchasedCategories(currentUser.Email) : Promise.resolve([]),
-                    fetchAccounts()
+                    fetchAccounts(),
+                    currentUser ? getSharedCoursesInbox(currentUser.Email) : Promise.resolve({ success: false, data: [] })
                 ]);
 
                 // Tìm course theo ID, fallback theo index
@@ -232,12 +247,23 @@ export default function CourseDetailPage() {
 
                 // Kiểm tra đã mua chưa
                 if (currentUser) {
-                    const purchased = checkPurchased(
+                    const sharedIds = new Set<string>();
+                    if (sharedInboxRes.success && sharedInboxRes.data) {
+                        sharedInboxRes.data.forEach((item: any) => {
+                            if (item.status === 'accepted') {
+                                sharedIds.add(String(item.courseId));
+                            }
+                        });
+                    }
+
+                    const { owned, shared } = checkPurchased(
                         foundCourse,
                         purchasedCats,
-                        (currentUser as any)['Owned']
+                        (currentUser as any)['Owned'],
+                        sharedIds
                     );
-                    setIsPurchased(purchased);
+                    setIsPurchased(owned);
+                    setIsShared(shared);
                 }
             } catch (error) {
                 console.error('Error loading course details:', error);
@@ -604,7 +630,7 @@ export default function CourseDetailPage() {
                                 {isPurchased ? (
                                     <button className="w-full py-3.5 bg-gray-100 text-green-700 font-bold rounded-xl flex items-center justify-center gap-2 cursor-default">
                                         <Icon name="check-circle" className="w-5 h-5" />
-                                        Đã sở hữu khóa học
+                                        {isShared ? 'Được chia sẻ' : 'Đã sở hữu khóa học'}
                                     </button>
                                 ) : (
                                     <>

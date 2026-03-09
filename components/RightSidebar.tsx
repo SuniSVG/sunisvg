@@ -266,7 +266,17 @@ export function RightSidebar() {
           currentUser ? getSharedCoursesInbox(currentUser.Email) : Promise.resolve({ success: false, data: [] })
         ]);
         setCourses(coursesData);
-        setPurchasedCategories(new Set(purchasedData.map((p: any) => p.CategoryName)));
+
+        const purchasedSet = new Set<string>();
+        purchasedData.forEach((p: any) => {
+            if (p.CategoryName) purchasedSet.add(cleanCategoryName(p.CategoryName).toLowerCase());
+        });
+        if (currentUser && (currentUser as any)['Owned']) {
+            String((currentUser as any)['Owned']).split(',').forEach(item => {
+                if (item) purchasedSet.add(cleanCategoryName(item).toLowerCase());
+            });
+        }
+        setPurchasedCategories(purchasedSet);
         
         if (sharedData.success && sharedData.data) {
             const acceptedIds = sharedData.data
@@ -360,12 +370,15 @@ const cleanCategoryName = (name: string): string =>
 
   const isCourseOwned = useMemo(() => (course: Course): boolean => {
     if (sharedCourseIds.has(String(course.ID))) return true;
-    for (const pc of purchasedCategories) {
-      const cleanPc = cleanCategoryName(pc);
-      if (cleanPc === cleanCategoryName(course.Category || '') || cleanPc === cleanCategoryName(course.Title || '')) return true;
-    }
-    return false;
-  }, [purchasedCategories, sharedCourseIds]);
+
+    const cleanCourseId = String(course.ID || '').trim().toLowerCase();
+    const cleanCourseCategory = cleanCategoryName(course.Category || '').toLowerCase();
+    const cleanCourseTitle = cleanCategoryName(course.Title || '').toLowerCase();
+
+    return purchasedCategories.has(cleanCourseId) ||
+           (!!cleanCourseCategory && purchasedCategories.has(cleanCourseCategory)) ||
+           (!!cleanCourseTitle && purchasedCategories.has(cleanCourseTitle));
+  }, [purchasedCategories, sharedCourseIds, cleanCategoryName]);
 
   const recommendedCourses = useMemo(() => courses.filter(c => !isCourseOwned(c)), [courses, isCourseOwned]);
   const freeCourses = useMemo(() => recommendedCourses.filter(c => c.Price === 0).slice(0, 2), [recommendedCourses]);

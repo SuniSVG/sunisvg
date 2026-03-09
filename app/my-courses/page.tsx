@@ -102,22 +102,20 @@ export default function MyCoursesPage() {
                     });
                 }
 
-const ownedCourses = allCourses.filter(course => {
-  const courseId       = cleanStr(String(course.ID || ''));
-  const courseCategory = cleanStr(course.Category || '');
-  const courseTitle    = cleanStr(course.Title || '');
+                const ownedCourses = allCourses.filter(course => {
+                    const courseId = String(course.ID || '').trim();
+                    // Check shared first (exact ID match)
+                    if (sharedMap.has(courseId)) return true;
 
-                    // Check shared first (exact ID match usually)
-                    if (sharedMap.has(String(course.ID))) return true;
+                    const cleanCourseId = courseId.toLowerCase();
+                    const cleanCourseCategory = cleanStr(course.Category || '');
+                    const cleanCourseTitle = cleanStr(course.Title || '');
 
-  const matched = Array.from(purchasedSet).some(purchased => {
-    if (!purchased) return false;
-    if (purchased === courseId || purchased === courseCategory || purchased === courseTitle) return true;
-    if (courseTitle.includes(purchased) || courseCategory.includes(purchased) || purchased.includes(courseTitle) || purchased.includes(courseCategory)) return true;
-    return false;
-  });
-
-  return matched;
+                    // Check purchased (exact match for ID, category, or title)
+                    return purchasedSet.has(cleanCourseId) ||
+                           (!!cleanCourseCategory && purchasedSet.has(cleanCourseCategory)) ||
+                           (!!cleanCourseTitle && purchasedSet.has(cleanCourseTitle));
+                           
                 }).map(course => {
                     if (sharedMap.has(String(course.ID))) {
                         return { ...course, sharedBy: sharedMap.get(String(course.ID)) };
