@@ -7,7 +7,7 @@ export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwiE9Xw7
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const MAX_LOCAL_CACHE = 4_000_000; // 4MB limit for local storage
-const MAX_MEMORY_CACHE = 50; // Max items in memory
+const MAX_MEMORY_CACHE = 50; // Max items in m
 
 // --- TYPES ---
 interface CacheEntry<T> {
