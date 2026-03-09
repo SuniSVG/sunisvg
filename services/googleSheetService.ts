@@ -73,10 +73,8 @@ const postToAppsScript = async (payload: Record<string, any>, retries = 2, timeo
     try {
       const response = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload),
         signal: controller.signal,
-        redirect: 'follow', // ✅ Quan trọng: Tự động follow redirect của Google Apps Script
       });
       clearTimeout(id);
 
