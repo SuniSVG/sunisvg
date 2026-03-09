@@ -4,13 +4,13 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchCourses, fetchPurchasedCategories } from '@/services/googleSheetService';
+import { fetchCourses, fetchPurchasedCategories, getSharedCoursesInbox } from '@/services/googleSheetService';
 import type { Course } from '@/types';
 import { Icon } from '@/components/shared/Icon';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 
 // Component for a single course card
-const MyCourseCard: React.FC<{ course: Course }> = ({ course }) => (
+const MyCourseCard: React.FC<{ course: Course & { sharedBy?: string } }> = ({ course }) => (
     <Link href={`/courses/${course.ID}`} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-blue-200 transition-all duration-300 overflow-hidden">
         <div className="aspect-[16/9] relative bg-gray-100">
             {course.ImageURL ? (
@@ -35,20 +35,27 @@ const MyCourseCard: React.FC<{ course: Course }> = ({ course }) => (
                 {course.Authors}
             </p>
             <div className="mt-4 flex items-center justify-between">
-                <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">
-                    Đã sở hữu
+                <span className={`text-xs font-bold px-3 py-1 rounded-full ${course.sharedBy ? 'text-purple-600 bg-purple-50' : 'text-green-600 bg-green-50'}`}>
+                    {course.sharedBy ? 'Được chia sẻ' : 'Đã sở hữu'}
                 </span>
                 <span className="text-sm font-bold text-blue-600 group-hover:underline">
                     Vào học →
                 </span>
             </div>
+            {course.sharedBy && (
+                <p className="text-[10px] text-gray-400 mt-2 truncate" title={`Từ: ${course.sharedBy}`}>
+                    Từ: {course.sharedBy}
+                </p>
+            )}
         </div>
     </Link>
 );
 
 export default function MyCoursesPage() {
     const { currentUser, loading: authLoading } = useAuth();
-    const [myCourses, setMyCourses] = useState<Course[]>([]);
+    const [myCourses, setMyCourses] = useState<(Course & { sharedBy?: string })[]>([]);
+    const [sharedCourses, setSharedCourses] = useState<(Course & { sharedBy?: string })[]>([]);
+    const [purchasedCourses, setPurchasedCourses] = useState<Course[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -61,9 +68,10 @@ export default function MyCoursesPage() {
 
         const loadMyCourses = async () => {
             try {
-                const [allCourses, purchasedItems] = await Promise.all([
+                const [allCourses, purchasedItems, sharedInboxRes] = await Promise.all([
                     fetchCourses(),
-                    fetchPurchasedCategories(currentUser.Email)
+                    fetchPurchasedCategories(currentUser.Email),
+                    getSharedCoursesInbox(currentUser.Email)
                 ]);
 
                 // Hàm chuẩn hóa: xóa khoảng trắng, chuyển thường, xóa phần giá tiền (ví dụ: "(500.000đ)")
@@ -84,10 +92,23 @@ export default function MyCoursesPage() {
                     });
                 }
 
+                // 3. Thêm từ Shared Courses (Accepted)
+                const sharedMap = new Map<string, string>();
+                if (sharedInboxRes.success && sharedInboxRes.data) {
+                    sharedInboxRes.data.forEach((item: any) => {
+                        if (item.status === 'accepted') {
+                            sharedMap.set(String(item.courseId), item.ownerEmail);
+                        }
+                    });
+                }
+
 const ownedCourses = allCourses.filter(course => {
   const courseId       = cleanStr(String(course.ID || ''));
   const courseCategory = cleanStr(course.Category || '');
   const courseTitle    = cleanStr(course.Title || '');
+
+                    // Check shared first (exact ID match usually)
+                    if (sharedMap.has(String(course.ID))) return true;
 
   const matched = Array.from(purchasedSet).some(purchased => {
     if (!purchased) return false;
@@ -97,11 +118,21 @@ const ownedCourses = allCourses.filter(course => {
   });
 
   return matched;
-});
+                }).map(course => {
+                    if (sharedMap.has(String(course.ID))) {
+                        return { ...course, sharedBy: sharedMap.get(String(course.ID)) };
+                    }
+                    return course;
+                }) as (Course & { sharedBy?: string })[];
 
-// ← THÊM LOG NÀY
+                // Chia danh sách
+                const shared = ownedCourses.filter(c => c.sharedBy);
+                const purchased = ownedCourses.filter(c => !c.sharedBy);
 
-setMyCourses(ownedCourses);
+                setMyCourses(ownedCourses); // Giữ lại danh sách tổng hợp nếu cần
+                setSharedCourses(shared);
+                setPurchasedCourses(purchased);
+
 
             } catch (error) {
                 console.error("Failed to load my courses:", error);
@@ -138,15 +169,32 @@ setMyCourses(ownedCourses);
         <div className="bg-gray-50 min-h-screen">
             <div className="container mx-auto px-4 py-12">
                 <h1 className="text-3xl font-bold text-gray-900 mb-8">Khóa học của tôi</h1>
-
-                {myCourses.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {myCourses.map(course => (
-                            <MyCourseCard key={course.ID} course={course} />
-                        ))}
+                
+                {sharedCourses.length > 0 && (
+                    <div className="mb-12">
+                        <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Được chia sẻ với bạn</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {sharedCourses.map(course => (
+                                <MyCourseCard key={`shared-${course.ID}`} course={course} />
+                            ))}
+                        </div>
                     </div>
-                ) : (
-                    <div className="text-center py-20 bg-white rounded-2xl border border-dashed">
+                )}
+
+                {purchasedCourses.length > 0 && (
+                     <div className="mb-12">
+                        <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Khóa học đã mua</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {purchasedCourses.map(course => (
+                                <MyCourseCard key={`purchased-${course.ID}`} course={course} />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+
+                {myCourses.length === 0 && !isLoading ? (
+                    <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
                         <Icon name="book-open" className="w-20 h-20 text-gray-300 mx-auto mb-4" />
                         <h2 className="text-xl font-bold mb-2">Bạn chưa sở hữu khóa học nào</h2>
                         <p className="text-gray-500 mb-6">Hãy khám phá và đăng ký các khóa học để bắt đầu hành trình học tập nhé!</p>
@@ -154,7 +202,7 @@ setMyCourses(ownedCourses);
                             Khám phá khóa học
                         </Link>
                     </div>
-                )}
+                ) : null}
             </div>
         </div>
     );

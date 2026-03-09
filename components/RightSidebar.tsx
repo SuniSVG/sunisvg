@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { Icon } from '@/components/shared/Icon';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchCourses, fetchPurchasedCategories, fetchForumPosts, fetchForumComments, addForumPost, fetchAccounts } from '@/services/googleSheetService';
+import { fetchCourses, fetchPurchasedCategories, fetchForumPosts, fetchForumComments, addForumPost, fetchAccounts, getSharedCoursesInbox } from '@/services/googleSheetService';
 import { Course, ForumPost, ForumComment, Account } from '@/types';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { parseVNDateToDate, timeAgo } from '@/utils/dateUtils';
@@ -202,6 +202,7 @@ export function RightSidebar() {
   const [breakInput, setBreakInput] = useState('5');
   const [courses, setCourses] = useState<Course[]>([]);
   const [purchasedCategories, setPurchasedCategories] = useState<Set<string>>(new Set());
+  const [sharedCourseIds, setSharedCourseIds] = useState<Set<string>>(new Set());
   const [forumPosts, setForumPosts] = useState<ForumPost[]>([]);
   const [forumComments, setForumComments] = useState<ForumComment[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -258,13 +259,22 @@ export function RightSidebar() {
       }
 
       try {
-        const [coursesData, purchasedData, accountsData] = await Promise.all([
+        const [coursesData, purchasedData, accountsData, sharedData] = await Promise.all([
           fetchCourses(),
           currentUser ? fetchPurchasedCategories(currentUser.Email) : Promise.resolve([]),
           fetchAccounts(),
+          currentUser ? getSharedCoursesInbox(currentUser.Email) : Promise.resolve({ success: false, data: [] })
         ]);
         setCourses(coursesData);
         setPurchasedCategories(new Set(purchasedData.map((p: any) => p.CategoryName)));
+        
+        if (sharedData.success && sharedData.data) {
+            const acceptedIds = sharedData.data
+                .filter((item: any) => item.status === 'accepted')
+                .map((item: any) => String(item.courseId));
+            setSharedCourseIds(new Set(acceptedIds));
+        }
+
         setAccounts(accountsData);
         localStorage.removeItem('edifyx_virtual_posts');
         await fetchLivePosts(true);
@@ -348,12 +358,13 @@ export function RightSidebar() {
   const cleanCategoryName = (name: string): string => name.replace(/\s*\([\d.,]+\s*đ\)$/i, '').trim();
 
   const isCourseOwned = useMemo(() => (course: Course): boolean => {
+    if (sharedCourseIds.has(String(course.ID))) return true;
     for (const pc of purchasedCategories) {
       const cleanPc = cleanCategoryName(pc);
       if (cleanPc === cleanCategoryName(course.Category || '') || cleanPc === cleanCategoryName(course.Title || '')) return true;
     }
     return false;
-  }, [purchasedCategories]);
+  }, [purchasedCategories, sharedCourseIds]);
 
   const recommendedCourses = useMemo(() => courses.filter(c => !isCourseOwned(c)), [courses, isCourseOwned]);
   const freeCourses = useMemo(() => recommendedCourses.filter(c => c.Price === 0).slice(0, 2), [recommendedCourses]);

@@ -9,7 +9,7 @@ import { Account } from '@/types';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { Icon } from '@/components/shared/Icon';
 import { useToast } from '@/contexts/ToastContext';
-import { UserPlus, School, Search, Users, UserCheck, Clock, X, Check, UserX, ChevronLeft, ChevronRight, Gift } from 'lucide-react';
+import { UserPlus, School, Search, Users, UserCheck, Clock, X, Check, UserX, ChevronLeft, ChevronRight, Gift, History } from 'lucide-react';
 import { ShareCourseToFriendModal } from '@/components/ShareCourseToFriendModal';
 
 export default function FriendsPage() {
@@ -266,6 +266,13 @@ export default function FriendsPage() {
                             >
                                 <Gift className="w-5 h-5" />
                             </button>
+                            <Link 
+                                href="/sharing"
+                                className="p-2.5 rounded-xl bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors"
+                                title="Lịch sử chia sẻ"
+                            >
+                                <History className="w-5 h-5" />
+                            </Link>
                             <button 
                                 onClick={() => { 
                                     if(confirm('Bạn có chắc muốn hủy kết bạn?')) 
