@@ -327,12 +327,13 @@ export default function UserMenuDashboard({ onClose }: { onClose?: () => void })
                 <div className="space-y-1">
                     {[
                         { href: '/my-courses', icon: GraduationCap, label: 'Khóa học của tôi' },
-                        { href: '/orders', icon: ShoppingBag, label: 'Quản lý đơn hàng' },
+                        { href: '/sharing', icon: History, label: 'Trung tâm chia sẻ' },
                         { href: '/vouchers', icon: Ticket, label: 'Kho Voucher' },
                         { href: '/settings', icon: Settings, label: 'Cài đặt tài khoản' },
                         { href: '/support', icon: MessageCircle, label: 'Trung tâm hỗ trợ' },
                         { href: '/changelog', icon: History, label: 'Nhật ký thay đổi' },
                         { href: '/policy', icon: ShieldCheck, label: 'Chính sách & Điều khoản' },
+                        { href: '/sharing', icon: History, label: 'Trung tâm chia sẻ' },
                     ].map((item, idx) => (
                         <Link key={idx} href={item.href} className="flex items-center gap-3 p-3 hover:bg-green-50 rounded-xl transition-colors group">
                             <div className="w-9 h-9 rounded-full bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:text-green-600 group-hover:shadow-sm transition-all">

@@ -158,7 +158,7 @@ export default function Header() {
               { href: '/articles', label: 'Thư viện' },
               { href: '/courses', label: 'Khoá học' },
               { href: '/teachers', label: 'Giáo viên' },
-              { href: '/exams', label: 'Thi online' },
+              { href: '/classroom', label: 'Nhóm học tập' },
               { href: '/friends', label: 'Bạn bè' },
               { href: '/forum', label: 'Diễn đàn' },
             ].map((link) => (
