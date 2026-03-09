@@ -7,7 +7,7 @@ import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'SuniSVG - ',
+  title: 'SuniSVG - Nền tảng học tập trực tuyến hàng đầu Việt Nam',
   description: 'Nền tảng học tập trực tuyến',
   icons: {
     icon: '/favicon1.png',

@@ -250,8 +250,10 @@ export default function CourseDetailPage() {
                     const sharedIds = new Set<string>();
                     if (sharedInboxRes.success && sharedInboxRes.data) {
                         sharedInboxRes.data.forEach((item: any) => {
-                            if (item.status === 'accepted') {
-                                sharedIds.add(String(item.courseId));
+                            const status = String(item.status || '').trim().toLowerCase();
+                            if (status === 'accepted') {
+                                const cId = String(item.courseId || item.CourseId || item.CourseID || '').trim();
+                                if (cId) sharedIds.add(cId);
                             }
                         });
                     }

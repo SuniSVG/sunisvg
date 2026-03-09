@@ -151,80 +151,64 @@ const postToAppsScript = async (
   retries = 2,
   timeout = 25000
 ): Promise<any> => {
+  let lastError: any;
 
-  const key = JSON.stringify(payload);
-  if (pendingRequests.has(key)) return pendingRequests.get(key)!;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
 
-  const request = (async () => {
-    let lastError: any;
+    try {
+      const response = await fetch('/api/apps-script', {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+        next: { revalidate: 30 }
+      });
 
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeout);
+      clearTimeout(timer);
 
-      try {
-        const response = await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-          next: { revalidate: 30 }
-        });
-
-        clearTimeout(timer);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${response.statusText}\n` + errorText.substring(0, 300));
-        }
-
-        const text = await response.text();
-        console.log(`[Apps Script] attempt=${attempt} response:`, text.substring(0, 300));
-
-        if (!text || !text.trim()) throw new Error("Empty response from Apps Script");
-
-        let result: any;
-        try {
-          result = JSON.parse(text);
-        } catch {
-          throw new Error("Invalid JSON:\n" + text.substring(0, 500));
-        }
-
-        if (result.status === "error") {
-          // ✅ Đảm bảo message luôn là string — tránh circular reference gây stack overflow
-          const msg = typeof result.message === 'string'
-            ? result.message
-            : (result.message != null ? String(result.message) : "Apps Script error");
-          throw new Error(msg);
-        }
-
-        return result;
-
-      } catch (error: any) {
-        clearTimeout(timer);
-        lastError = error;
-
-        // Không retry các lỗi logic từ Apps Script (status: error)
-        // Chỉ retry các lỗi mạng/hạ tầng
-        const retryable =
-          error.name === "AbortError" ||
-          error.message?.includes("Failed to fetch") ||
-          error.message?.includes("NetworkError") ||
-          error.message?.includes("HTTP 500") ||
-          error.message?.includes("HTTP 404");
-
-        if (!retryable || attempt >= retries) break;
-
-        await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${response.statusText}\n` + errorText.substring(0, 300));
       }
+
+      const text = await response.text();
+      if (!text || !text.trim()) throw new Error("Empty response from Apps Script");
+
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error("Invalid JSON:\n" + text.substring(0, 500));
+      }
+
+      if (result.status === "error") {
+        const msg = typeof result.message === 'string'
+          ? result.message
+          : String(result.message ?? "Apps Script error");
+        throw new Error(msg);
+      }
+
+      return result;
+
+    } catch (error: any) {
+      clearTimeout(timer);
+      lastError = error;
+
+      const retryable =
+        error.name === "AbortError" ||
+        error.message?.includes("Failed to fetch") ||
+        error.message?.includes("NetworkError") ||
+        error.message?.includes("HTTP 500") ||
+        error.message?.includes("HTTP 404");
+
+      if (!retryable || attempt >= retries) break;
+      await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
     }
+  }
 
-    throw lastError;
-  })();
-
-  pendingRequests.set(key, request);
-  request.finally(() => pendingRequests.delete(key));
-  return request;
+  throw lastError;
 };
 
 // --- REVALIDATION TRACKER ---
@@ -704,31 +688,19 @@ export const getScheduleForUser = async (email: string): Promise<ScheduleEvent[]
     }
 };
 
-export const fetchPurchasedCategories = async (email: string): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
+export const fetchPurchasedCategories = async (
+  email: string
+): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
   try {
-    let result;
-    try {
-      result = await getFromAppsScript('getPurchasedCategories', { email: email.trim() });
-      if (result.status === "ok" && result.message === "API running") throw new Error("Old Deployment");
-    } catch {
-      // Fallback to old method: fetch full sheet and filter
-      const rawPurchases = await fetchDataFromAppsScript<any>('Purchases');
-      if (Array.isArray(rawPurchases)) {
-        const normalizedEmail = email.trim().toLowerCase();
-        return rawPurchases
-          .filter((p: any) => String(p.UserEmail || '').trim().toLowerCase() === normalizedEmail)
-          .map((p: any) => ({
-            CategoryName: String(p.CategoryName || p.CourseID || p.CourseId || '').trim(),
-            PurchaseDate: String(p.PurchaseDate || p.Timestamp || '').trim(),
-          }));
-      }
-      return [];
-    }
-    
+    const result = await postToAppsScript({
+      action: 'getPurchasedCategories',
+      email: email.trim()
+    }, 0, 10000);
+
     if (result.status === 'success' && Array.isArray(result.categories)) {
       return result.categories.map((c: any) => ({
-          CategoryName: String(c.CategoryName || c.CourseID || c.CourseId || '').trim(),
-          PurchaseDate: String(c.PurchaseDate || c.Timestamp || '').trim()
+        CategoryName: String(c.CategoryName || c.CourseID || c.CourseId || c || '').trim(),
+        PurchaseDate: String(c.PurchaseDate || c.Timestamp || '').trim(),
       }));
     }
     return [];
@@ -774,42 +746,46 @@ export const fetchPurchaseStats = async (): Promise<Record<string, number>> => {
     }
 };
 
-export const purchasePremiumCategory = async (userEmail: string, categoryName: string): Promise<{ success: boolean; newBalance?: number; error?: string }> => {
-    try {
-        const result = await postToAppsScript({
-            action: 'purchasePremiumCategory',
-            userEmail,
-            categoryName,
-        }, 0, 30000);
-        if (result.status === 'success') {
-            return { success: true, newBalance: result.newBalance };
-        }
-        return { success: false, error: result.message };
-    } catch (error: any) {
-        if (typeof window !== 'undefined' && (error.name === 'AbortError' || error.message?.includes('timeout'))) {
-            window.location.reload();
-        }
-        return { success: false, error: error.message };
+export const purchasePremiumCategory = async (
+  userEmail: string,
+  categoryName: string
+): Promise<{ success: boolean; newBalance?: number; error?: string }> => {
+  try {
+    const result = await postToAppsScript({
+      action: 'purchasePremiumCategory',
+      userEmail,
+      categoryName,
+    }, 0, 30000);
+
+    if (result.status === 'success') {
+      return { success: true, newBalance: result.newBalance };
     }
+    return { success: false, error: result.message };
+  } catch (error: any) {
+    // ✅ Bỏ window.location.reload() — không reload khi lỗi
+    return { success: false, error: error.message };
+  }
 };
 
-export const purchaseCourse = async (email: string, courseId: string): Promise<{ success: boolean; newBalance?: number; error?: string }> => {
-    try {
-        const result = await postToAppsScript({
-            action: 'purchaseCourse',
-            email,
-            courseId,
-        }, 0, 30000);
-        if (result.status === 'success') {
-            return { success: true, newBalance: result.newBalance };
-        }
-        return { success: false, error: result.message };
-    } catch (error: any) {
-        if (typeof window !== 'undefined' && (error.name === 'AbortError' || error.message?.includes('timeout'))) {
-            window.location.reload();
-        }
-        return { success: false, error: error.message };
+export const purchaseCourse = async (
+  email: string,
+  courseId: string
+): Promise<{ success: boolean; newBalance?: number; error?: string }> => {
+  try {
+    const result = await postToAppsScript({
+      action: 'purchaseCourse',
+      email,
+      courseId,
+    }, 0, 30000);
+
+    if (result.status === 'success') {
+      return { success: true, newBalance: result.newBalance };
     }
+    return { success: false, error: result.message };
+  } catch (error: any) {
+    // ✅ Bỏ window.location.reload()
+    return { success: false, error: error.message };
+  }
 };
 
 const mapBankQuestionToMedicalQuestion = (raw: any): MedicalQuestion => ({

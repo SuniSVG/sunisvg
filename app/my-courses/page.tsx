@@ -96,8 +96,10 @@ export default function MyCoursesPage() {
                 const sharedMap = new Map<string, string>();
                 if (sharedInboxRes.success && sharedInboxRes.data) {
                     sharedInboxRes.data.forEach((item: any) => {
-                        if (item.status === 'accepted') {
-                            sharedMap.set(String(item.courseId), item.ownerEmail);
+                        const status = String(item.status || '').trim().toLowerCase();
+                        if (status === 'accepted') {
+                            const cId = String(item.courseId || item.CourseId || item.CourseID || '').trim();
+                            if (cId) sharedMap.set(cId, item.ownerEmail);
                         }
                     });
                 }

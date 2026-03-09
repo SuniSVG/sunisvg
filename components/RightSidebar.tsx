@@ -280,8 +280,8 @@ export function RightSidebar() {
         
         if (sharedData.success && sharedData.data) {
             const acceptedIds = sharedData.data
-                .filter((item: any) => item.status === 'accepted')
-                .map((item: any) => String(item.courseId));
+                .filter((item: any) => String(item.status || '').trim().toLowerCase() === 'accepted')
+                .map((item: any) => String(item.courseId || item.CourseId || item.CourseID || '').trim());
             setSharedCourseIds(new Set(acceptedIds));
         }
 
