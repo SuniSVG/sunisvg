@@ -3,9 +3,8 @@ import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
 const APPS_SCRIPT_URL =
-  typeof window === "undefined"
-    ? "http://localhost:3000/api/apps-script"
-    : "/api/apps-script";
+  "https://script.google.com/macros/s/AKfycbxBBuQGGOGRmaPyL2p8MjZ-0W7nqJFe7HOaNO-4u47WkuPIHteIrN2r6-KH2yzSUGyr/exec";
+
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const MAX_LOCAL_CACHE = 4_000_000; // 4MB limit for local storage
