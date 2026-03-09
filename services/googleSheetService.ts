@@ -391,20 +391,6 @@ export const joinClass = async (joinCode: string, studentEmail: string): Promise
         }
         return { success: false, error: result.message };
     } catch (error: any) {
-        // Fix: Handle case where DB updates but client gets CORS/Network error
-        if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.message.includes('JSON'))) {
-            try {
-                // Wait briefly for DB propagation
-                await new Promise(r => setTimeout(r, 2000));
-                // Verify if purchase exists in history
-                const purchases = await fetchPurchasedCategories(userEmail);
-                const hasIt = purchases.some(p => p.CategoryName === categoryName);
-                if (hasIt) {
-                    const acc = await getAccountByEmail(userEmail, true);
-                    return { success: true, newBalance: acc?.Money };
-                }
-            } catch (e) { console.error("Verification failed", e); }
-        }
         return { success: false, error: error.message };
     }
 };
@@ -482,16 +468,6 @@ export const assignTestToClass = async (classId: string, quizId: string, dueDate
         });
         return { success: result.status === 'success', error: result.message };
     } catch (error: any) {
-        // Fix: Handle case where DB updates but client gets CORS/Network error
-        if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.message.includes('JSON'))) {
-            try {
-                await new Promise(r => setTimeout(r, 2000));
-                const acc = await getAccountByEmail(email, true);
-                if (acc && (acc as any).Owned && (acc as any).Owned.includes(courseId)) {
-                    return { success: true };
-                }
-            } catch (e) { console.error("Verification failed", e); }
-        }
         return { success: false, error: error.message };
     }
 };
