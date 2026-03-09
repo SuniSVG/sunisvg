@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = '/api/proxy';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwiE9Xw7d49HrXbsVouq8r8aVr36bSf8dzwldSp8HovqeyMQhZyqbLADegq15YDAC3i/exec';
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
