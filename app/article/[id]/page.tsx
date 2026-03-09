@@ -370,6 +370,7 @@ export default function ArticleDetail() {
                                     onClick={toggleFullscreen}
                                     className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
                                     title={isFullscreen ? "Thu nhỏ" : "Phóng to toàn màn hình"}
+                                    aria-label={isFullscreen ? "Thu nhỏ" : "Phóng to toàn màn hình"}
                                 >
                                     <Maximize className="w-5 h-5" />
                                 </button>
@@ -380,6 +381,7 @@ export default function ArticleDetail() {
                                         rel="noopener noreferrer"
                                         className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
                                         title="Mở trong tab mới"
+                                        aria-label="Mở tài liệu trong tab mới"
                                     >
                                         <ExternalLink className="w-5 h-5" />
                                     </a>

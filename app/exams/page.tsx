@@ -678,6 +678,7 @@ export default function ExamsDashboard() {
                                                 <Link
                                                     href={`/exams/take/${quiz.quizId}`}
                                                     className="p-2.5 bg-gray-50 text-gray-400 hover:bg-green-50 hover:text-green-600 rounded-xl transition-all shrink-0"
+                                                    aria-label={`Làm lại bài thi ${quiz.title}`}
                                                 >
                                                     <RotateCcw className="w-4 h-4" />
                                                 </Link>

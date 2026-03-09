@@ -14,8 +14,6 @@ type Tab = 'assignments' | 'members';
 
 /* ─── Styles ─────────────────────────────────────────────────────────── */
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
-
   .cd-page * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
   .cd-page .syne { font-family: 'Syne', sans-serif; }
 

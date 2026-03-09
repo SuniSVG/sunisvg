@@ -467,7 +467,7 @@ export default function SupportPage() {
                                 <MessageCircle className="w-5 h-5" />
                                 <span className="font-bold">Hỗ trợ trực tuyến</span>
                             </div>
-                            <button onClick={() => setIsChatOpen(false)} className="hover:bg-blue-700 p-1 rounded-full transition">
+                            <button onClick={() => setIsChatOpen(false)} className="hover:bg-blue-700 p-1 rounded-full transition" aria-label="Đóng chat">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -504,7 +504,7 @@ export default function SupportPage() {
                                 placeholder="Nhập tin nhắn..." 
                                 className="flex-1 bg-gray-100 border-0 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                             />
-                            <button type="submit" className="bg-blue-600 text-white p-2 rounded-xl hover:bg-blue-700 transition">
+                            <button type="submit" className="bg-blue-600 text-white p-2 rounded-xl hover:bg-blue-700 transition" aria-label="Gửi tin nhắn">
                                 <Send className="w-5 h-5" />
                             </button>
                         </form>
