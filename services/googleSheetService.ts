@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOeKNCHmOkZX7GLbBMd_bAX78kZuHukPNWmEtwYFokib1WJkpFwdMjZk3crsmcmcY/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7lqJuiKGIsupCt1WAxEr9YA-uivqxdQF-c4Dt5FXQ5HqE0b5HJzIhj1MlrzoOMzXQ/exec';
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -216,7 +216,8 @@ export const getAccountByEmail = async (
         'Money': parseInt(acc['Money'] || '0', 10) || 0,
         'AvatarURL': String(acc['AvatarURL'] || '').trim(),
         'Thông tin mô tả': String(acc['Thông tin mô tả'] || '').trim(),
-        'Môn học': String(acc['Môn học'] || '').trim(),
+        'Môn học': String(acc['Bạn bè'] || acc['Môn học'] || '').trim(),
+        'Bạn bè': String(acc['Bạn bè'] || acc['Môn học'] || '').trim(),
         'Goal': String(acc['Goal'] || '').trim(),
         'Voucher': String(acc['Voucher'] || '').trim(),
         'Tiêu chí 1': acc['Tiêu chí 1'] ?? null,
@@ -836,8 +837,8 @@ return rawDocs.map((doc: any) => ({
 }));
 };
 
-export const fetchAccounts = async (): Promise<Account[]> => {
-const rawAccounts = await fetchDataFromAppsScript<any>('Accounts'); 
+export const fetchAccounts = async (ignoreCache = false): Promise<Account[]> => {
+const rawAccounts = await fetchDataFromAppsScript<any>('Accounts', ignoreCache); 
 return rawAccounts.map((acc: any) => ({
     'Tên tài khoản': String(acc['Tên tài khoản'] || '').trim(),
     'Email': String(acc['Email'] || '').trim(),
@@ -860,7 +861,8 @@ return rawAccounts.map((acc: any) => ({
     'Money': parseInt(acc['Money'] || '0', 10) || 0,
     'AvatarURL': String(acc['AvatarURL'] || '').trim(),
     'Thông tin mô tả': String(acc['Thông tin mô tả'] || '').trim(),
-    'Môn học': String(acc['Môn học'] || '').trim(),
+    'Bạn bè': String(acc['Bạn bè'] || '').trim(),
+    'Trường': String(acc['Trường'] || '').trim(), // Thêm trường học để lọc
     'Owned': String(acc['Owned'] || '').trim(),
     'Goal': String(acc['Goal'] || '').trim(),
     'Voucher': String(acc['Voucher'] || '').trim(),
@@ -1255,6 +1257,71 @@ export const updateStudyTime = async (email: string, durationInMinutes: number):
             return { success: true, studyTime: result.studyTime };
         }
         return { success: false, error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const addFriend = async (userEmail: string, friendEmail: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'addFriend',
+            userEmail,
+            friendEmail
+        });
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const sendFriendRequest = async (senderEmail: string, receiverEmail: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'sendFriendRequest',
+            senderEmail,
+            receiverEmail
+        });
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const acceptFriendRequest = async (userEmail: string, friendEmail: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'acceptFriendRequest',
+            userEmail,
+            friendEmail
+        });
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const rejectFriendRequest = async (userEmail: string, friendEmail: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'rejectFriendRequest',
+            userEmail,
+            friendEmail
+        });
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const removeFriend = async (userEmail: string, friendEmail: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+        const result = await postToAppsScript({
+            action: 'removeFriend',
+            userEmail,
+            friendEmail
+        });
+        return { success: result.status === 'success', error: result.message };
     } catch (error: any) {
         return { success: false, error: error.message };
     }

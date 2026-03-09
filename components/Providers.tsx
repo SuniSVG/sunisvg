@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { RightSidebar } from '@/components/RightSidebar';
 import { usePathname } from 'next/navigation';
+import { AuthSync } from '@/components/AuthSync';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,6 +15,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
       <AuthProvider>
+        <AuthSync />
         <div className="flex flex-col min-h-screen font-sans text-gray-800">
           <Header />
           <div className="flex flex-1 relative">

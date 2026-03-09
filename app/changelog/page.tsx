@@ -13,12 +13,31 @@ interface ChangeLogItem {
 }
 
 const changelogData: ChangeLogItem[] = [
-    
+    {
+        version: '3.3.6',
+        date: '08/03/2026',
+        changes: [
+            { type: 'feature', content: 'Ra mắt tính năng "Học cùng bạn bè" cho phép tạo nhóm học tập và chia sẻ tài liệu.' },
+            { type: 'removal', content: 'Loại bỏ tính năng Co - Learning' },
+            { type: 'improvement', content: 'Giảm giá sâu các khóa học 12.999 -> 3.999 do lỗi mở tài liệu.' },
+            { type: 'improvement', content: 'Cập nhật đầy đủ các môn học.' },
+        ]
+        },
+    {
+        version: '3.2.0',
+        date: '01/03/2026',
+        changes: [
+            { type: 'feature', content: 'Khôi phục lại tính năng "Nhóm học tập" cho phép chia sẻ tài liệu và cùng nhau học tập.' },
+            { type: 'improvement', content: 'Cải thiện thuật toán SEO.' },
+            { type: 'fix', content: 'Sửa lỗi đăng kí.' },
+            { type: 'fix', content: 'Khắc phục lỗi mất trạng thái đăng nhập khi mở nhiều tab.' },
+        ]
+    },
     {
         version: '3.1.0',
         date: '15/02/2026',
         changes: [
-            { type: 'feature', content: 'Ra mắt "Lộ trình học tập thông minh" tự động điều chỉnh theo năng lực.' },
+            { type: 'feature', content: 'Ra mắt "Co -Learning" Hỗ trợ tải 1 số bài học và bài giảng từ Youtube.' },
             { type: 'improvement', content: 'Cập nhật giao diện trang chủ SuniSVG 3.0 hiện đại hơn.' },
             { type: 'fix', content: 'Sửa lỗi hiển thị sai avatar trong phần bình luận.' },
             { type: 'removal', content: 'Gỡ bỏ hoàn toàn các mã nguồn cũ liên quan đến hệ thống lớp học.' },

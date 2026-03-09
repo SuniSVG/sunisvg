@@ -18,6 +18,7 @@ export interface Account {
   'Tổng số câu hỏi đã làm đúng'?: number;
   'Tổng số câu hỏi đã làm trong tuần'?: number;
   'Tổng số câu hỏi đã làm đúng trong tuần'?: number;
+  'Bạn bè'?: string;
   Tokens?: number;
   'Tổng thời gian học'?: number;
   'Thời gian học hôm nay'?: number;

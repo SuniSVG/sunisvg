@@ -352,12 +352,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     }
     try {
-      const updatedAccount = await getAccountByEmail(userInSession.Email);
+      const updatedAccount = await getAccountByEmail(userInSession.Email, true); // Luôn bỏ qua cache để lấy dữ liệu mới nhất
       if (updatedAccount) {
-        if (!options?.silent) {
-            setCurrentUser(updatedAccount);
-            sessionStorage.setItem('currentUser', JSON.stringify(updatedAccount));
-        }
+        // Luôn cập nhật state và session storage để đảm bảo tính nhất quán
+        setCurrentUser(updatedAccount);
+        sessionStorage.setItem('currentUser', JSON.stringify(updatedAccount));
         return updatedAccount;
       }
       return null;
