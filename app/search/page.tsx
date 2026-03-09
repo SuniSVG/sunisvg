@@ -7,7 +7,6 @@ import {
     fetchCourses, 
     fetchArticles, 
     fetchPremiumArticles, 
-    fetchAllQuestionsFromBank 
 } from '@/services/googleSheetService';
 import type { Course, ScientificArticle, MedicalQuestion } from '@/types';
 import { Icon } from '@/components/shared/Icon';
@@ -36,11 +35,10 @@ function SearchContent() {
             setIsLoading(true);
             try {
                 // Fetch in parallel
-                const [coursesData, articlesData, premiumArticlesData, questionsData] = await Promise.all([
+                const [coursesData, articlesData, premiumArticlesData] = await Promise.all([
                     fetchCourses().catch(() => []),
                     fetchArticles().catch(() => []),
                     fetchPremiumArticles().catch(() => []),
-                    fetchAllQuestionsFromBank().catch(() => [])
                 ]);
 
                 // Combine articles
@@ -61,15 +59,10 @@ function SearchContent() {
                     a.Authors.toLowerCase().includes(query.toLowerCase())
                 );
 
-                // Filter Questions (Simple filter on Question Text or ID)
-                const filteredQuestions = questionsData.filter(q => 
-                    q.ID.includes(query) || 
-                    q.Question_Text.toLowerCase().includes(query.toLowerCase())
-                );
+
 
                 setCourses(filteredCourses);
                 setArticles(filteredArticles);
-                setQuestions(filteredQuestions);
 
             } catch (error) {
                 console.error("Search error:", error);
