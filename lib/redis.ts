@@ -2,7 +2,7 @@
 import Redis from "ioredis";
 
 declare global {
-  var _redis: Redis | undefined;
+  var _redis: Redis | undefined | null;
 }
 
 function createRedis() {
@@ -25,7 +25,15 @@ function createRedis() {
   return client;
 }
 
-const redis = globalThis._redis ?? createRedis();
-if (process.env.NODE_ENV !== "production") globalThis._redis = redis ?? undefined;
+let redis: Redis | null;
+
+if (globalThis._redis === undefined) {
+  redis = createRedis();
+  globalThis._redis = redis;
+} else {
+  redis = globalThis._redis;
+}
+
+if (process.env.NODE_ENV !== "production") globalThis._redis = redis;
 
 export default redis;
