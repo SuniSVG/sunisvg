@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronDown } from 'lucide-react';
@@ -12,6 +12,20 @@ import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 export default function Header() {
   const { currentUser } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const incomingRequestCount = useMemo(() => {
+    if (!currentUser) return 0;
+    const raw = currentUser['Bạn bè'] || '';
+    let count = 0;
+    if (raw) {
+      String(raw).split(',').forEach((s: string) => {
+        if (s.trim().startsWith('(?)')) {
+          count++;
+        }
+      });
+    }
+    return count;
+  }, [currentUser]);
 
   return (
     <header className="bg-green-800 sticky top-0 z-50 shadow-md">
@@ -40,8 +54,14 @@ export default function Header() {
               Nhóm học tập
             </Link>
             <Link
-              href="/friends" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
+              href="/friends" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md relative">
               Bạn bè
+              {incomingRequestCount > 0 && (
+                <span className="absolute top-3 right-0.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-green-800"></span>
+                </span>
+              )}
             </Link>
             <Link href="/forum" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Diễn đàn
@@ -139,6 +159,7 @@ export default function Header() {
               { href: '/courses', label: 'Khoá học' },
               { href: '/teachers', label: 'Giáo viên' },
               { href: '/exams', label: 'Thi online' },
+              { href: '/friends', label: 'Bạn bè' },
               { href: '/forum', label: 'Diễn đàn' },
             ].map((link) => (
               <Link
