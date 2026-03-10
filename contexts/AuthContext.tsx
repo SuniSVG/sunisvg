@@ -47,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { addToast } = useToast();
   const showToast = addToast; // Map showToast to addToast from ToastContext
   const studyIntervalRef = useRef<number | null>(null);
+  const lastSavedTimeRef = useRef<number | null>(null); // To hold the timestamp of the last successful save
 
   useEffect(() => {
     try {
@@ -55,9 +56,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentUser(JSON.parse(storedUser));
       }
       const startTime = sessionStorage.getItem('sessionStartTime');
+      const lastSavedTime = sessionStorage.getItem('lastSavedTime'); // Get last saved time
       if (startTime) {
         setIsStudying(true);
         setSessionStartTime(Number(startTime));
+        // Initialize ref with last saved time, or session start time if it's a fresh session
+        lastSavedTimeRef.current = lastSavedTime ? Number(lastSavedTime) : Number(startTime);
       }
     } catch (error) {
       console.error("Failed to parse from sessionStorage", error);
@@ -69,10 +73,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   const saveIncrementalStudyTime = useCallback(async () => {
     const user = JSON.parse(sessionStorage.getItem('currentUser') || 'null');
-    if (!user) return;
+    if (!user || !lastSavedTimeRef.current) return;
 
-    const result = await updateStudyTime(user.Email, 1);
+    const now = Date.now();
+    // Calculate minutes passed since last save
+    const durationInMinutes = Math.floor((now - lastSavedTimeRef.current) / (60 * 1000));
+
+    if (durationInMinutes < 1) {
+        return; // Don't save if less than a full minute has passed
+    }
+
+    const result = await updateStudyTime(user.Email, durationInMinutes);
     if (result.success && result.studyTime) {
+      // On success, update the last saved time to now
+      lastSavedTimeRef.current = now;
+      sessionStorage.setItem('lastSavedTime', String(now));
+
       setCurrentUser(prev => {
         if (!prev) return null;
         const updatedUser = {
@@ -107,7 +123,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const startTime = Date.now();
     setIsStudying(true);
     setSessionStartTime(startTime);
+    lastSavedTimeRef.current = startTime; // Initialize last saved time
     sessionStorage.setItem('sessionStartTime', String(startTime));
+    sessionStorage.setItem('lastSavedTime', String(startTime)); // Persist last saved time
     showToast('Bắt đầu phiên học!', 'info');
   }, [showToast]);
 
@@ -167,16 +185,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         studyIntervalRef.current = null;
     }
 
-    const startTime = Number(sessionStorage.getItem('sessionStartTime'));
-    if (!startTime || !currentUser) return;
+    const lastSaved = lastSavedTimeRef.current;
+    if (!lastSaved || !currentUser) {
+        // Clean up if there's no session to save
+        setIsStudying(false);
+        setSessionStartTime(null);
+        lastSavedTimeRef.current = null;
+        sessionStorage.removeItem('sessionStartTime');
+        sessionStorage.removeItem('lastSavedTime');
+        return;
+    };
 
     // Calculate remaining duration that hasn't been saved by the interval yet.
-    const durationInMinutes = Math.round((Date.now() - startTime) / (1000 * 60));
+    const now = Date.now();
+    const durationInMinutes = Math.floor((now - lastSaved) / (1000 * 60));
 
     // Clear session state immediately for responsiveness
     setIsStudying(false);
     setSessionStartTime(null);
+    lastSavedTimeRef.current = null;
     sessionStorage.removeItem('sessionStartTime');
+    sessionStorage.removeItem('lastSavedTime');
 
     if (durationInMinutes > 0) {
         const result = await updateStudyTime(currentUser.Email, durationInMinutes);
