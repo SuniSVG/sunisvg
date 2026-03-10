@@ -68,8 +68,23 @@ export function timeAgo(dateString: string): string {
   return `${diffInYears} năm trước`;
 }
 
-// Google Apps Script - Server side (Code này chỉ chạy trên Google Apps Script, không chạy trên Next.js)
-// Bạn hãy copy hàm này vào file .gs trên script.google.com
-// function getNowVN() {
-//   return Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
-// }
+/*
+ * =======================================================================
+ * HƯỚNG DẪN SỬA LỖI BACKEND (GOOGLE APPS SCRIPT)
+ * =======================================================================
+ * Lỗi "không chia sẻ được khóa học" và các lỗi liên quan đến thời gian
+ * xuất phát từ Google Apps Script.
+ *
+ * NGUYÊN NHÂN: Hàm `getNowVN()` đang trả về một chuỗi (string), nhưng code lại
+ * mong đợi một đối tượng Date.
+ *
+ * CÁCH SỬA: Mở file mã nguồn .gs trên Google Apps Script của bạn,
+ * tìm và thay thế hàm `getNowVN()` cũ bằng hàm sau:
+ *
+ * function getNowVN() {
+ *   return new Date();
+ * }
+ *
+ * Việc này sẽ sửa lỗi vì hàm sẽ trả về đúng đối tượng Date, và các hàm
+ * như .toISOString() hoặc Utilities.formatDate() sẽ hoạt động chính xác.
+ */
