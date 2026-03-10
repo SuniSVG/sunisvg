@@ -694,7 +694,7 @@ export const fetchPurchasedCategories = async (
     const result = await postToAppsScript({
       action: 'getPurchasedCategories',
       email: email.trim()
-    }, 0, 10000);
+    }, 1, 60000);
 
     if (result.status === 'success' && Array.isArray(result.categories)) {
       return result.categories.map((c: any) => ({
@@ -754,7 +754,7 @@ export const purchasePremiumCategory = async (
       action: 'purchasePremiumCategory',
       userEmail,
       categoryName,
-    }, 0, 30000);
+    }, 0, 45000);
 
     if (result.status === 'success') {
       return { success: true, newBalance: result.newBalance };
@@ -775,7 +775,7 @@ export const purchaseCourse = async (
       action: 'purchaseCourse',
       email,
       courseId,
-    }, 0, 30000);
+    }, 0, 45000);
 
     if (result.status === 'success') {
       return { success: true, newBalance: result.newBalance };
@@ -973,10 +973,11 @@ return rawPosts.map((p: any) => ({
     AuthorEmail: String(p.AuthorEmail || '').trim(),
     AuthorName: String(p.AuthorName || '').trim(),
     Channel: String(p.Channel || '').trim(),
-    Timestamp: String(p.Timestamp || p.TimeStamp || '').trim(),
+    Timestamp: String(p.Timestamp || p.TimeStamp || p.Date || p.Time || '').trim(),
     Upvotes: String(p.Upvotes || '').trim(),
     UpvotedBy: String(p.UpvotedBy || '').trim(),
     ImageURLs: String(p.ImageURLs || '').trim(),
+    DocURLs: String(p.DocURLs || '').trim(),
 }));
 };
 
@@ -989,8 +990,9 @@ return rawComments.map((c: any) => ({
     Content: String(c.Content || '').trim().replace(/^\\\|\//, ''),
     AuthorEmail: String(c.AuthorEmail || '').trim(),
     AuthorName: String(c.AuthorName || '').trim(),
-    Timestamp: String(c.Timestamp || c.TimeStamp || '').trim(),
+    Timestamp: String(c.Timestamp || c.TimeStamp || c.Date || c.Time || '').trim(),
     ImageURLs: String(c.ImageURLs || '').trim(),
+    DocURLs: String(c.DocURLs || '').trim(),
 }));
 };
 
@@ -1066,9 +1068,14 @@ export const addArticle = async (
 
 export const addForumPost = async (postData: Omit<ForumPost, 'ID' | 'Timestamp' | 'Upvotes' | 'UpvotedBy'>): Promise<{ success: boolean; error?: string }> => {
     try {
+        // Tạo timestamp tại client (Frontend) theo định dạng dd/MM/yyyy HH:mm:ss
+        const now = new Date();
+        const timestamp = now.toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');
+
         const result = await postToAppsScript({
             action: 'addForumPost',
             ...postData,
+            Timestamp: timestamp, // Gửi thời gian từ client
             Title: `\\|/${postData.Title}`,
             Content: `\\|/${postData.Content}`
         });
@@ -1080,9 +1087,14 @@ export const addForumPost = async (postData: Omit<ForumPost, 'ID' | 'Timestamp' 
 
 export const addForumComment = async (commentData: Omit<ForumComment, 'ID' | 'Timestamp'>): Promise<{ success: boolean; error?: string }> => {
     try {
+        // Tạo timestamp tại client (Frontend)
+        const now = new Date();
+        const timestamp = now.toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }).replace(',', '');
+
         const result = await postToAppsScript({
             action: 'addForumComment',
             ...commentData,
+            Timestamp: timestamp, // Gửi thời gian từ client
             Content: `\\|/${commentData.Content}`
         });
         return result.status === 'success' ? { success: true } : { success: false, error: result.message };

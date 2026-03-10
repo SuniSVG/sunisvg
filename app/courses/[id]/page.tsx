@@ -9,7 +9,8 @@ import {
     fetchCourses, 
     fetchPremiumArticles, 
     fetchPurchasedCategories, 
-    purchaseCourse, // This is correct
+    purchaseCourse,
+    purchasePremiumCategory,
     fetchAccounts,
     getSharedCoursesInbox
 } from '@/services/googleSheetService';
@@ -328,7 +329,7 @@ export default function CourseDetailPage() {
 
         setIsPurchasing(true);
         try {
-            const result = await purchaseCourse(currentUser.Email, course.ID);
+            const result = await purchasePremiumCategory(currentUser.Email, course.Category);
             if (result.success) {
                 // ✅ Cập nhật state trực tiếp — KHÔNG reload trang
                 setIsPurchased(true);

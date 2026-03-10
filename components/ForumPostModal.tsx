@@ -12,6 +12,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { FileText, Download } from 'lucide-react';
+import { timeAgo } from '@/utils/dateUtils';
 
 // Hàm parseAttachments và FileAttachmentList được định nghĩa lại ở đây
 // để component này có thể hoạt động độc lập.
@@ -161,7 +162,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <Link href={profileLink} onClick={(e) => { if(!postAuthorAccount?.Email) e.preventDefault(); else onClose(); }} className="group flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold overflow-hidden relative">
+            <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-bold overflow-hidden relative">
               {postAuthorAccount?.AvatarURL ? (
                 <Image
                   src={convertGoogleDriveUrl(postAuthorAccount.AvatarURL)}
@@ -171,14 +172,14 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                   className="object-cover"
                   referrerPolicy="no-referrer"
                 />
-              ) : (
+              ) :  (
                 post.AuthorName.charAt(0)
               )}
             </div>
             <div>
               <h3 className="font-bold text-gray-900 leading-tight">{post.Title}</h3>
-              <p className="text-xs text-gray-500">Bởi <span className="font-bold group-hover:text-blue-600 transition-colors">{post.AuthorName}</span> • {post.Timestamp || 'Vừa xong'}</p>
-            </div>
+              <p className="text-xs text-gray-500">Bởi <span className="font-bold group-hover:text-blue-600 transition-colors">{post.AuthorName}</span> • {timeAgo(post.Timestamp || '')}</p>
+             </div>
             </Link>
           </div>
           <button 
@@ -273,7 +274,7 @@ export function ForumPostModal({ post, onClose }: ForumPostModalProps) {
                         <div className="flex-1 bg-gray-50 rounded-2xl p-4">
                           <div className="flex items-center justify-between mb-1">
                             <Link href={commenterProfileLink} onClick={(e) => { if(!commenterAccount?.Email) e.preventDefault(); else onClose(); }} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition-colors">{comment.AuthorName}</Link>
-                            <span className="text-[10px] text-gray-400">{comment.Timestamp || 'Vừa xong'}</span>
+                            <span className="text-[10px] text-gray-400">{timeAgo(comment.Timestamp || '')}</span>
                           </div>
                           <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{comment.Content}</p>
                           

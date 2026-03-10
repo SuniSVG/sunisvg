@@ -15,31 +15,6 @@ import { useToast } from '@/contexts/ToastContext';
 import { AnimatePresence } from 'motion/react';
 import { FileText, Download } from 'lucide-react';
 
-const parseForumDate = (dateStr: string | undefined): Date => {
-    if (!dateStr) return new Date();
-    
-    // Handle format: HH:mm:ss dd/MM/yyyy (e.g., 13:10:12 11/9/2025)
-    const timeDateRegex = /^(\d{1,2}):(\d{1,2}):(\d{1,2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const match = dateStr.trim().match(timeDateRegex);
-    
-    if (match) {
-        const [_, h, m, s, day, month, year] = match;
-        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
-    }
-
-    // Handle format: dd/MM/yyyy HH:mm:ss (Standard VN)
-    const dateTimeRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})$/;
-    const match2 = dateStr.trim().match(dateTimeRegex);
-    
-    if (match2) {
-        const [_, day, month, year, h, m, s] = match2;
-        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
-    }
-
-    const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? new Date() : d;
-};
-
 const parseAttachments = (urlsStr: string | undefined) => {
     if (!urlsStr || !urlsStr.trim()) return { images: [], files: [] };
     
@@ -1508,7 +1483,7 @@ const cleanCategoryName = (name: string): string =>
                           </svg>
                           {post.commentCount}
                         </span>
-                        <span className="post-time">{timeAgo(parseForumDate(post.Timestamp).toISOString())}</span>
+                        <span className="post-time">{timeAgo(post.Timestamp || '')}</span>
                       </div>
                     </div>
                   </div>
