@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Zap } from 'lucide-react';
 import { Icon } from './shared/Icon';
 import { useAuth } from '@/contexts/AuthContext';
 import UserMenuDashboard from './UserMenuDashboard';
@@ -66,6 +66,9 @@ export default function Header() {
             <Link href="/forum" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
               Diễn đàn
             </Link>
+            <Link href="/subscriptions" className="h-full flex items-center px-3 text-sm font-bold text-white hover:bg-green-700 transition-colors rounded-md">
+              Gói đăng ký
+            </Link>
           </nav>
         </div>
 
@@ -112,6 +115,9 @@ export default function Header() {
               <div className="hidden lg:flex items-center gap-2 text-sm font-bold bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm whitespace-nowrap">
                 <Icon name="currency-dollar" className="w-4 h-4 text-green-600" />
                 {Number(currentUser.Money || 0).toLocaleString('vi-VN')} đ
+                <span className="mx-1 text-gray-300">|</span>
+                <Zap className="w-4 h-4 text-orange-500" />
+                {currentUser.Credits_Left || 0} CR
               </div>
               <div className="relative group h-full flex items-center">
                 <button className="flex items-center gap-2 text-sm font-bold bg-green-700 text-white pl-1.5 pr-4 py-1.5 rounded-full hover:bg-green-600 transition-colors shadow-sm border border-green-600">

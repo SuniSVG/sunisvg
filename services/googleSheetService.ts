@@ -1,9 +1,9 @@
-import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book } from '../types';
+import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book, SubscriptionPlan, UserSubscription, Purchase } from '../types';
 import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycby6qGNRfklAVJ4ZvqJmtagtMJrU2y7fxUf-M8y0C93VY7YQnmGM1T1R-cMIKXPoBqF2/exec";
+  "https://script.google.com/macros/s/AKfycbxUVhg8Wez3HugCCFcRUr4cMsOuVPsRs5ty4EB8mf8GRrgHUOfbWx5hSw6OVr3YqBU6/exec";
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -70,7 +70,10 @@ const getFromAppsScript = async (
   timeout = 25000
 ): Promise<any> => {
   const queryString = new URLSearchParams({ action, ...params }).toString();
-  const url = `${APPS_SCRIPT_URL}?${queryString}`;
+  
+  // Use proxy on client to avoid CORS, direct on server
+  const baseUrl = typeof window !== 'undefined' ? '/api/apps-script' : APPS_SCRIPT_URL;
+  const url = `${baseUrl}?${queryString}`;
   const key = url;
 
   if (pendingRequests.has(key)) return pendingRequests.get(key)!;
@@ -396,6 +399,8 @@ export const getAccountByEmail = async (
         'Ngày cập nhật học': String(acc['Ngày cập nhật học'] || '').trim(),
         'Money': parseInt(acc['Money'] || '0', 10) || 0,
         'AvatarURL': String(acc['AvatarURL'] || '').trim(),
+        'Plan': String(acc['Plan'] || 'Basic').trim(),
+        'Credits_Left': parseInt(acc['Credits_Left'] || '0', 10) || 0,
         'Thông tin mô tả': String(acc['Thông tin mô tả'] || '').trim(),
         'Môn học': String(acc['Bạn bè'] || acc['Môn học'] || '').trim(),
         'Bạn bè': String(acc['Bạn bè'] || acc['Môn học'] || '').trim(),
@@ -691,18 +696,15 @@ export const fetchPurchasedCategories = async (
   email: string
 ): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
   try {
-    const result = await postToAppsScript({
-      action: 'getPurchasedCategories',
-      email: email.trim()
-    }, 1, 60000);
+    const allPurchases = await fetchDataFromAppsScript<Purchase>('Purchases');
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (result.status === 'success' && Array.isArray(result.categories)) {
-      return result.categories.map((c: any) => ({
-        CategoryName: String(c.CategoryName || c.CourseID || c.CourseId || c || '').trim(),
-        PurchaseDate: String(c.PurchaseDate || c.Timestamp || '').trim(),
+    return allPurchases
+      .filter(p => String(p.UserEmail || '').trim().toLowerCase() === normalizedEmail)
+      .map(p => ({
+        CategoryName: String(p.CategoryName || '').trim(),
+        PurchaseDate: String(p.PurchaseDate || '').trim(),
       }));
-    }
-    return [];
   } catch (error) {
     console.error('Failed to fetch purchased categories:', error);
     return [];
@@ -711,14 +713,14 @@ export const fetchPurchasedCategories = async (
 
 export const fetchPurchaseStats = async (): Promise<Record<string, number>> => {
     try {
-        const rawPurchases = await fetchDataFromAppsScript<any>('Purchases');
+        const rawPurchases = await fetchDataFromAppsScript<Purchase>('Purchases');
         if (!Array.isArray(rawPurchases)) {
             return {};
         }
         
         const categoryUsers: Record<string, Set<string>> = {};
 
-        rawPurchases.forEach((p: any) => {
+        rawPurchases.forEach((p) => {
             let category = String(p.CategoryName || '').trim();
             const email = String(p.UserEmail || '').trim().toLowerCase();
             
@@ -1717,3 +1719,83 @@ function compressImage(file: File, maxSize = 1024, quality = 0.85): Promise<stri
     reader.onerror = reject;
   });
 }
+
+// --- SUBSCRIPTION / COMBO SERVICES ---
+
+export const fetchSubscriptionPlans = async (): Promise<SubscriptionPlan[]> => {
+    try {
+        const rawPlans = await fetchDataFromAppsScript<any>('Subscriptions');
+        return rawPlans
+            .map((p: any) => ({
+                ID: String(p['ID'] || '').trim(),
+                Title: String(p['Title'] || '').trim(),
+                Price: parseInt(String(p['Price'] || '0').replace(/,/g, ''), 10),
+                Credits: parseInt(String(p['Credits'] || '0').replace(/,/g, ''), 10),
+                Description: String(p['Description'] || '').trim(),
+                Features: String(p['Features'] || '').split(',').map(f => f.trim()).filter(f => f),
+                Color: String(p['Color'] || 'blue').trim(),
+                Active: ['true', 'active', 'yes'].includes(
+                    String(p['Active'] || '').trim().toLowerCase()
+                ),
+                Except: String(p['Except'] || '').trim(),
+                ValidityDays: parseInt(String(p['ValidityDays'] || '0'), 10)
+            }))
+            .filter(p => p.Active && p.ID); // Chỉ lấy gói đang hoạt động
+    } catch (error) {
+        console.error("Failed to fetch subscription plans:", error);
+        return [];
+    }
+};
+
+export const fetchUserSubscriptions = async (email: string): Promise<UserSubscription[]> => {
+    try {
+        // Không cache local lâu vì số dư credits thay đổi thường xuyên
+        const rawSubs = await fetchDataFromAppsScript<any>('Subscription_Purchases', true); 
+        return rawSubs
+            .filter((s: any) => String(s['UserEmail'] || '').trim().toLowerCase() === email.toLowerCase().trim())
+            .map((s: any) => ({
+                PurchaseID: String(s['PurchaseID'] || '').trim(),
+                UserEmail: String(s['UserEmail'] || '').trim(),
+                PlanID: String(s['PlanID'] || '').trim(),
+                PlanName: String(s['PlanName'] || '').trim(),
+                TotalCredits: parseInt(String(s['TotalCredits'] || '0'), 10),
+                RemainingCredits: parseInt(String(s['RemainingCredits'] || '0'), 10),
+                PurchaseDate: String(s['PurchaseDate'] || '').trim(),
+                ExpiryDate: String(s['ExpiryDate'] || '').trim(),
+                Status: String(s['Status'] || 'Active').trim() as any,
+            }));
+    } catch (error) {
+        console.error("Failed to fetch user subscriptions:", error);
+        return [];
+    }
+};
+
+export const buySubscription = async (email: string, planId: string): Promise<{ success: boolean; error?: string; newBalance?: number }> => {
+    try {
+        // Hàm này gọi action 'buySubscription' bên GAS (Bạn cần implement bên GAS để trừ tiền và thêm dòng vào Subscription_Purchases)
+        const result = await postToAppsScript({
+            action: 'buySubscription',
+            email,
+            planId
+        });
+        
+        return { success: result.status === 'success', error: result.message, newBalance: result.newBalance };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};
+
+export const useCreditForCourse = async (email: string, courseId: string): Promise<{ success: boolean; error?: string; }> => {
+    try {
+        // Hàm này gọi action 'useCreditForCourse' bên GAS
+        const result = await postToAppsScript({
+            action: 'useCreditForCourse',
+            email,
+            courseId
+        });
+        
+        return { success: result.status === 'success', error: result.message };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+};

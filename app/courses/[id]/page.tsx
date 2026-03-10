@@ -12,7 +12,8 @@ import {
     purchaseCourse,
     purchasePremiumCategory,
     fetchAccounts,
-    getSharedCoursesInbox
+    getSharedCoursesInbox,
+    useCreditForCourse
 } from '@/services/googleSheetService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -345,6 +346,74 @@ export default function CourseDetailPage() {
         }
     };
 
+    const handleActivate = async () => {
+        if (!currentUser) {
+            addToast('Vui lòng đăng nhập để kích hoạt khóa học.', 'info');
+            router.push('/login');
+            return;
+        }
+        if (!course) return;
+
+        const credits = currentUser.Credits_Left || 0;
+        if (credits <= 0) {
+            addToast('Bạn đã hết tín chỉ kích hoạt. Vui lòng mua thêm gói đăng ký.', 'error');
+            return;
+        }
+
+        const confirmActivate = window.confirm(
+            `Bạn có chắc chắn muốn dùng 1 tín chỉ để kích hoạt khóa học "${course.Title}"? (Còn lại: ${credits} tín chỉ)`
+        );
+        if (!confirmActivate) return;
+
+        setIsPurchasing(true);
+        try {
+            const result = await useCreditForCourse(currentUser.Email, course.ID);
+            if (result.success) {
+                setIsPurchased(true);
+                await refreshCurrentUser();
+                addToast('Kích hoạt thành công! Bạn đã có thể truy cập toàn bộ nội dung.', 'success');
+            } else {
+                addToast(result.error || 'Kích hoạt thất bại.', 'error');
+            }
+        } catch (e: any) {
+            addToast(e.message || 'Lỗi kết nối.', 'error');
+        } finally {
+            setIsPurchasing(false);
+        }
+    };
+
+    const handleBuyNow = async () => {
+        if (!currentUser) {
+            addToast('Vui lòng đăng nhập để mua khóa học.', 'info');
+            router.push('/login');
+            return;
+        }
+        if (!course) return;
+
+        if ((currentUser.Money || 0) < course.Price) {
+            addToast('Số dư không đủ. Vui lòng nạp thêm tiền.', 'error');
+            setIsDepositModalOpen(true);
+            return;
+        }
+
+        const confirmPurchase = window.confirm(`Xác nhận mua khóa học "${course.Title}" với giá ${course.Price.toLocaleString()}đ?`);
+        if (!confirmPurchase) return;
+
+        setIsPurchasing(true);
+        try {
+            const result = await purchaseCourse(currentUser.Email, course.ID);
+            if (result.success) {
+                setIsPurchased(true);
+                await refreshCurrentUser();
+                addToast('Mua khóa học thành công!', 'success');
+            } else {
+                addToast(result.error || 'Giao dịch thất bại.', 'error');
+            }
+        } finally {
+            setIsPurchasing(false);
+        }
+    };
+
     const handleDepositSuccess = async () => {
         setIsDepositModalOpen(false);
         await refreshCurrentUser();
@@ -638,14 +707,18 @@ export default function CourseDetailPage() {
                                 ) : (
                                     <>
                                         <button 
-                                            onClick={handlePurchase}
+                                            onClick={handleBuyNow}
                                             disabled={isPurchasing}
                                             className="w-full py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 disabled:opacity-70 flex items-center justify-center gap-2"
                                         >
                                             {isPurchasing ? 'Đang xử lý...' : 'Mua ngay'}
                                         </button>
-                                        <button className="w-full py-3.5 bg-white border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors">
-                                            Kích hoạt
+                                        <button 
+                                            onClick={handleActivate}
+                                            disabled={isPurchasing}
+                                            className="w-full py-3.5 bg-white border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors disabled:opacity-70"
+                                        >
+                                            Kích hoạt (Combo)
                                         </button>
                                     </>
                                 )}

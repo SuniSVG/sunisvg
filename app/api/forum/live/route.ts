@@ -4,7 +4,7 @@ import { parseVNDateToDate } from '@/utils/dateUtils';
 export const revalidate = 0; // Không cache ở Next.js — tự quản lý cache bên dưới
 
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycby6qGNRfklAVJ4ZvqJmtagtMJrU2y7fxUf-M8y0C93VY7YQnmGM1T1R-cMIKXPoBqF2/exec";
+  "https://script.google.com/macros/s/AKfycbxUVhg8Wez3HugCCFcRUr4cMsOuVPsRs5ty4EB8mf8GRrgHUOfbWx5hSw6OVr3YqBU6/exec";
 
 // Cache in-memory cho serverless function
 let cachedData: any = null;
@@ -12,16 +12,48 @@ let lastFetch = 0;
 const CACHE_TTL = 15000; // 15s — đủ fresh cho live forum
 
 async function fetchSheet(sheetName: string): Promise<any[]> {
-  const url = `${APPS_SCRIPT_URL}?action=getSheetData&sheetName=${sheetName}`;
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { 'Cache-Control': 'no-store' },
+  // 1. Thử GET trước (Native way)
+  try {
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=getSheetData&sheetName=${sheetName}`, {
+      method: 'GET',
+      headers: { 'Cache-Control': 'no-store' },
+      next: { revalidate: 0 }
+    });
+    if (res.ok) {
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        if (json.status === 'success' && Array.isArray(json.data)) return json.data;
+      } catch (e) {
+        // Ignore JSON parse error on GET
+      }
+    }
+  } catch (e) {
+    // Ignore GET error, try POST
+  }
+
+  // 2. Fallback sang POST nếu GET thất bại
+  // Sử dụng text/plain để đồng bộ với googleSheetService và tránh lỗi preflight/CORS/Content-Type của GAS
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8', 'Cache-Control': 'no-store' },
+    body: JSON.stringify({ action: 'getSheetData', sheetName }),
+    next: { revalidate: 0 }
   });
 
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${sheetName}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`HTTP ${res.status} fetching ${sheetName}: ${errText.slice(0, 100)}`);
+  }
 
-  const json = await res.json();
-  return json.status === 'success' && Array.isArray(json.data) ? json.data : [];
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    return json.status === 'success' && Array.isArray(json.data) ? json.data : [];
+  } catch (e) {
+    console.error(`Invalid JSON for ${sheetName}:`, text.slice(0, 200));
+    throw new Error(`Invalid JSON response for ${sheetName}`);
+  }
 }
 
 export async function GET() {
@@ -71,6 +103,7 @@ export async function GET() {
         ID: post.ID,
         Title: post.Title,
         AuthorName: post.AuthorName,
+        AuthorEmail: post.AuthorEmail, // Thêm trường này để hiển thị Avatar
         Timestamp: post.Timestamp,
         Content: post.Content,
         commentCount: commentMap[post.ID] || 0,
@@ -86,8 +119,8 @@ export async function GET() {
       }
     });
 
-  } catch (error) {
-    console.error('Live Forum API Error:', error);
+  } catch (error: any) {
+    console.error('Live Forum API Error:', error.message);
 
     // Trả cache cũ nếu có khi lỗi — tránh trắng màn hình
     if (cachedData) {

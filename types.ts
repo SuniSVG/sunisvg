@@ -25,6 +25,8 @@ export interface Account {
   'Ngày cập nhật học'?: string;
   Money?: number;
   AvatarURL?: string;
+  Plan?: string; // Tên gói combo hiện tại
+  Credits_Left?: number; // Tổng số credit còn lại
   'Thông tin mô tả'?: string;
   'Môn học'?: string;
   Goal?: string;
@@ -61,6 +63,40 @@ export interface MedicalQuestion {
 }
 
 export type AnyQuestion = AnatomyQuestion | MedicalQuestion;
+
+export interface Purchase {
+    UserEmail: string;
+    CategoryName: string;
+    PurchaseDate: string;
+}
+
+// e:\NEW\types.ts (Append content)
+
+export interface SubscriptionPlan {
+    ID: string;
+    Title: string;
+    Price: number;
+    Credits: number; // Số lượng khóa học được phép chọn (Combo)
+    Description: string;
+    Features: string[];
+    Color: string;
+    Active: boolean;
+    Except?: string; // Danh sách ID khóa học bị loại trừ, cách nhau bằng dấu phẩy
+    ValidityDays?: number; // Số ngày hiệu lực của gói
+}
+
+export interface UserSubscription {
+    PurchaseID: string;
+    UserEmail: string;
+    PlanID: string;
+    PlanName: string;
+    TotalCredits: number;
+    RemainingCredits: number;
+    PurchaseDate: string;
+    ExpiryDate?: string; // Ngày hết hạn của gói đã mua
+    Status: 'Active' | 'Completed' | 'Expired';
+}
+
 
 export interface DocumentData {
   title: string;
