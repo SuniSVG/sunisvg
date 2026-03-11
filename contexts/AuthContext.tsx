@@ -23,7 +23,7 @@ interface AuthContextType {
     pass: string,
     schoolName: string
   ) => Promise<{ success: boolean; error?: string }>;
-  resendVerificationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
+  resendVerificationEmail: (email: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   resetPasswordWithOTP: (email: string, otp: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
   updateUserStats: (attempted: number, correct: number) => void;
@@ -259,10 +259,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendVerificationEmail = async (email: string) => {
     try {
-      return await resendVerificationEmailService(email);
-    } catch (error) {
+      const response = await resendVerificationEmailService(email);
+      // Cập nhật để xử lý định dạng phản hồi mới từ backend: { status: 'success', ... }
+      if (response && (response as any).status === 'success') {
+        return { success: true, message: (response as any).message };
+      }
+      return response;
+    } catch (error: any) {
       console.error('Resending verification email failed:', error);
-      return { success: false, error: 'Đã xảy ra lỗi khi gửi lại email.' };
+      // Hiển thị thông báo lỗi cụ thể từ backend (ví dụ: Tài khoản đã xác minh)
+      return { success: false, error: error.message || 'Đã xảy ra lỗi khi gửi lại email.' };
     }
   };
 

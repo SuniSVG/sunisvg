@@ -1,0 +1,32 @@
+# Robots.txt for SuniSVG
+User-agent: *
+Allow: /
+Allow: /courses
+Allow: /courses/
+Allow: /articles
+Allow: /articles/
+Allow: /books
+Allow: /books/
+Allow: /forum
+Allow: /forum/
+Allow: /premium
+Allow: /premium/
+Allow: /my-courses
+Allow: /my-courses/
+Allow: /classroom
+Allow: /classroom/
+Allow: /co-learning
+Allow: /co-learning/
+
+# Disallow admin and private pages
+Disallow: /api/
+Disallow: /admin/
+Disallow: /settings
+Disallow: /profile/
+
+# Sitemap
+Sitemap: https://sunisvg.edu.vn/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 1
+

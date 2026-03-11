@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { Icon } from '@/components/shared/Icon';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchCourses, fetchPurchasedCategories, fetchForumPosts, fetchForumComments, addForumPost, fetchAccounts, getSharedCoursesInbox } from '@/services/googleSheetService';
+import { fetchCourses, fetchPurchasedCategories, fetchForumPosts, fetchForumComments, addForumPost, fetchAccounts, getSharedCoursesInbox, uploadForumImage } from '@/services/googleSheetService';
 import { Course, ForumPost, ForumComment, Account } from '@/types';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { parseVNDateToDate, timeAgo } from '@/utils/dateUtils';
@@ -187,6 +187,11 @@ export function RightSidebar() {
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
+  
+  // File upload states
+  const [attachedFiles, setAttachedFiles] = useState<{ file: File; preview: string; type: 'image' | 'document' }[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -194,6 +199,71 @@ export function RightSidebar() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, []);
+
+  // Helper function to determine if a file is an image
+  const isImageFile = (file: File): boolean => {
+    return file.type.startsWith('image/');
+  };
+
+  // Handle file selection from input
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const newFiles = files.map(file => ({
+      file,
+      preview: isImageFile(file) ? URL.createObjectURL(file) : '',
+      type: isImageFile(file) ? 'image' as const : 'document' as const
+    }));
+    setAttachedFiles(prev => [...prev, ...newFiles].slice(0, 5)); // Max 5 files
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle paste event (Ctrl+V)
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      const newFiles = imageFiles.map(file => ({
+        file,
+        preview: URL.createObjectURL(file),
+        type: 'image' as const
+      }));
+      setAttachedFiles(prev => [...prev, ...newFiles].slice(0, 5));
+    }
+  }, []);
+
+  // Attach paste listener
+  useEffect(() => {
+    document.addEventListener('paste', handlePaste as any);
+    return () => {
+      document.removeEventListener('paste', handlePaste as any);
+    };
+  }, [handlePaste]);
+
+  // Remove attached file
+  const removeAttachedFile = (index: number) => {
+    setAttachedFiles(prev => {
+      const newFiles = [...prev];
+      // Revoke object URL to avoid memory leaks
+      if (newFiles[index].preview) {
+        URL.revokeObjectURL(newFiles[index].preview);
+      }
+      newFiles.splice(index, 1);
+      return newFiles;
+    });
+  };
 
   const fetchLivePosts = useCallback(async (shouldScroll = false) => {
     try {
@@ -298,7 +368,30 @@ export function RightSidebar() {
     e.preventDefault();
     if (!currentUser) { addToast('Vui lòng đăng nhập để gửi tin nhắn', 'info'); return; }
     const content = messageInput.trim();
-    if (!content) return;
+    // Allow sending if there's content or attached files
+    if (!content && attachedFiles.length === 0) return;
+
+    // If there are attached files, upload them first
+    let uploadedImageUrls = '';
+    if (attachedFiles.length > 0) {
+      setIsUploading(true);
+      try {
+        const imageFiles = attachedFiles.filter(f => f.type === 'image');
+        const uploadPromises = imageFiles.map(async (attachment) => {
+          const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const url = await uploadForumImage(attachment.file, tempId);
+          return url;
+        });
+        const urls = await Promise.all(uploadPromises);
+        uploadedImageUrls = urls.join(',');
+      } catch (error) {
+        console.error('Upload failed:', error);
+        addToast('Lỗi khi tải ảnh lên', 'error');
+        setIsUploading(false);
+        return;
+      }
+      setIsUploading(false);
+    }
 
     // Optimistic update: Hiển thị tin nhắn ngay lập tức
     const tempId = `temp-${Date.now()}`;
@@ -310,10 +403,16 @@ export function RightSidebar() {
       AuthorEmail: currentUser.Email, // Thêm email để modal hiển thị avatar
       Timestamp: new Date().toISOString(),
       commentCount: 0,
+      ImageURLs: uploadedImageUrls, // Add uploaded image URLs
     };
 
     setLivePosts(prev => [...prev, optimisticPost]);
     setMessageInput('');
+    // Clear attached files after sending
+    attachedFiles.forEach(f => {
+      if (f.preview) URL.revokeObjectURL(f.preview);
+    });
+    setAttachedFiles([]);
     setTimeout(scrollToBottom, 50);
 
     try {
@@ -323,6 +422,7 @@ export function RightSidebar() {
         AuthorEmail: currentUser.Email,
         AuthorName: currentUser['Tên tài khoản'],
         Channel: 'Chung',
+        ImageURLs: uploadedImageUrls, // Pass image URLs to server
       });
       if (result.success) {
         // Tải lại ngầm để đồng bộ dữ liệu thật từ server
@@ -1499,21 +1599,72 @@ const cleanCategoryName = (name: string): string =>
 
           {/* Chat Input */}
           <div className="chat-input-wrap">
-            <form className="chat-form" onSubmit={handleSendMessage}>
+            {/* File Preview Section */}
+            {attachedFiles.length > 0 && (
+              <div className="flex gap-2 mb-2 overflow-x-auto pb-2">
+                {attachedFiles.map((file, idx) => (
+                  <div key={idx} className="relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 group">
+                    {file.type === 'image' && file.preview ? (
+                      <img src={file.preview} alt="preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-emerald-50">
+                        <FileText className="w-6 h-6 text-emerald-500" />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeAttachedFile(idx)}
+                      className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white rounded-bl-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <form className="chat-form">
+              {/* Hidden file input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept="image/*,.pdf,.doc,.docx,.txt"
+                className="hidden"
+                multiple
+              />
+              
+              {/* Attach button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!currentUser || isUploading}
+                className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 transition-colors disabled:opacity-50"
+                title="Đính kèm file hoặc ảnh"
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+              
               <input
                 type="text"
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
-                placeholder={currentUser ? 'Chia sẻ với cộng đồng...' : 'Đăng nhập để nhắn tin'}
-                disabled={!currentUser || isSending}
+                placeholder={currentUser ? (attachedFiles.length > 0 ? 'Thêm tin nhắn...' : 'Chia sẻ với cộng đồng...') : 'Đăng nhập để nhắn tin'}
+                disabled={!currentUser || isSending || isUploading}
                 className="chat-input"
               />
               <button
                 type="submit"
-                disabled={!currentUser || isSending || !messageInput.trim()}
+                onClick={handleSendMessage}
+                disabled={!currentUser || isSending || isUploading || (!messageInput.trim() && attachedFiles.length === 0)}
                 className="chat-send-btn"
               >
-                {isSending ? (
+                {isSending || isUploading ? (
                   <div className="send-spinner" />
                 ) : (
                   <svg width="14" height="14" fill="none" stroke="white" viewBox="0 0 24 24" strokeWidth={2.5}>
@@ -1523,6 +1674,13 @@ const cleanCategoryName = (name: string): string =>
                 )}
               </button>
             </form>
+            
+            {/* Upload hint */}
+            {currentUser && (
+              <p className="text-[9px] text-gray-400 mt-1.5 text-center">
+                Dán ảnh (Ctrl+V) hoặc nhấn 📎 để đính kèm
+              </p>
+            )}
           </div>
         </div>
         </div>
