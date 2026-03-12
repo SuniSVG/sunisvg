@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, use } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, use, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
@@ -8,7 +8,7 @@ import {
     Mail, Shield, Wallet, FileText, Settings, Lock,
     Eye, EyeOff, CheckCircle2, XCircle, ChevronRight,
     ChevronLeft, Calendar, Tag, Edit3, Save, AlertCircle,
-    Loader2, BookOpen, Star, BarChart3, Clock,
+    Loader2, BookOpen, BarChart3, Clock,
     TrendingUp, UserCircle2, ArrowUpRight,
 } from 'lucide-react';
 import { fetchArticles, getAccountByEmail } from '@/services/googleSheetService';
@@ -19,12 +19,34 @@ import { convertGoogleDriveUrl } from '@/utils/imageUtils';
 import { useToast } from '@/contexts/ToastContext';
 import AvatarUploader from '@/components/AvatarUploader';
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
-
+// ─── Constants ──────────────────────────────────────────────────────────────────
 const ARTICLES_PER_PAGE = 8;
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// ─── Module-level articles cache ────────────────────────────────────────────────
+// Tồn tại suốt session trình duyệt, reset khi F5.
+// Tránh gọi lại API mỗi khi navigate vào profile page.
+let _articlesCache: ScientificArticle[] | null = null;
+let _articlesFetchPromise: Promise<ScientificArticle[]> | null = null;
 
+async function fetchArticlesCached(): Promise<ScientificArticle[]> {
+    if (_articlesCache) return _articlesCache;
+    // Deduplicate: nếu đang fetch rồi thì share promise, không tạo request mới
+    if (!_articlesFetchPromise) {
+        _articlesFetchPromise = fetchArticles()
+            .then(data => {
+                _articlesCache = data;
+                _articlesFetchPromise = null;
+                return data;
+            })
+            .catch(err => {
+                _articlesFetchPromise = null;
+                throw err;
+            });
+    }
+    return _articlesFetchPromise;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────────
 const sortArticles = (arts: ScientificArticle[]): ScientificArticle[] =>
     [...arts].sort((a, b) => {
         const tA = parseVNDateToDate(a.SubmissionDate)?.getTime() ?? 0;
@@ -32,8 +54,7 @@ const sortArticles = (arts: ScientificArticle[]): ScientificArticle[] =>
         return tB - tA;
     });
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
-
+// ─── Sub-components ───────────────────────────────────────────────────────────────
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const cfg: Record<string, { label: string; cls: string }> = {
         Approved: { label: '✓ Đã duyệt', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -108,13 +129,7 @@ const AvatarImage: React.FC<{
     className?: string;
 }> = ({ avatarUrl, fallbackLetter, className = '' }) => {
     const [imgError, setImgError] = useState(false);
-
-    const directUrl = useMemo(
-        () => (avatarUrl ? convertGoogleDriveUrl(avatarUrl) : ''),
-        [avatarUrl]
-    );
-
-    // Reset error state when URL changes
+    const directUrl = useMemo(() => (avatarUrl ? convertGoogleDriveUrl(avatarUrl) : ''), [avatarUrl]);
     useEffect(() => { setImgError(false); }, [directUrl]);
 
     if (directUrl && !imgError) {
@@ -131,7 +146,6 @@ const AvatarImage: React.FC<{
             </div>
         );
     }
-
     return (
         <span className={`flex items-center justify-center font-black text-white select-none ${className}`}>
             {fallbackLetter}
@@ -139,49 +153,56 @@ const AvatarImage: React.FC<{
     );
 };
 
-// ─── Page Props (Next.js App Router) ──────────────────────────────────────────
-
+// ─── Page Props ───────────────────────────────────────────────────────────────────
 interface PageProps {
     params: Promise<{ email: string }>;
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────────
-
+// ─── Main Component ───────────────────────────────────────────────────────────────
 export default function ProfilePage({ params }: PageProps) {
     const { email: paramEmail } = use(params);
     const email = decodeURIComponent(paramEmail);
 
-    const { currentUser, updateUsername, updatePassword, refreshCurrentUser } = useAuth();
+    // isAuthReady = true sau khi sessionStorage được đọc xong (synchronous, ~0ms)
+    // Điều này đảm bảo chúng ta biết chính xác currentUser là ai TRƯỚC KHI fetch,
+    // tránh hoàn toàn việc fetch 2 lần (lần 1: guest, lần 2: logged-in).
+    const { currentUser, isAuthReady, updateUsername, updatePassword, refreshCurrentUser } = useAuth();
     const { addToast } = useToast();
 
-    // ── Data state ──────────────────────────────────────────────────────────────
-    const [profileUser, setProfileUser]     = useState<Account | null>(null);
-    const [userArticles, setUserArticles]   = useState<ScientificArticle[]>([]);
-    const [isLoading, setIsLoading]         = useState(true);
-    const [error, setError]                 = useState<string | null>(null);
+    // ── Data state ────────────────────────────────────────────────────────────────
+    const [profileUser, setProfileUser]   = useState<Account | null>(null);
+    const [userArticles, setUserArticles] = useState<ScientificArticle[]>([]);
+    const [isLoading, setIsLoading]       = useState(true);
+    const [error, setError]               = useState<string | null>(null);
 
-    // ── UI state ────────────────────────────────────────────────────────────────
-    const [activeTab, setActiveTab]         = useState<'articles' | 'settings'>('articles');
-    const [articlePage, setArticlePage]     = useState(1);
+    // ── UI state ──────────────────────────────────────────────────────────────────
+    const [activeTab, setActiveTab]   = useState<'articles' | 'settings'>('articles');
+    const [articlePage, setArticlePage] = useState(1);
 
-    // ── Settings form ───────────────────────────────────────────────────────────
-    const [newName, setNewName]             = useState('');
-    const [currentPw, setCurrentPw]         = useState('');
-    const [newPw, setNewPw]                 = useState('');
-    const [confirmPw, setConfirmPw]         = useState('');
-    const [isUpdatingName, setIsUpdatingName]   = useState(false);
-    const [isUpdatingPw, setIsUpdatingPw]       = useState(false);
+    // ── Settings form ─────────────────────────────────────────────────────────────
+    const [newName, setNewName]           = useState('');
+    const [currentPw, setCurrentPw]       = useState('');
+    const [newPw, setNewPw]               = useState('');
+    const [confirmPw, setConfirmPw]       = useState('');
+    const [isUpdatingName, setIsUpdatingName] = useState(false);
+    const [isUpdatingPw, setIsUpdatingPw]     = useState(false);
     const [pwCriteria, setPwCriteria] = useState({
         length: false, uppercase: false, lowercase: false, number: false, specialChar: false,
     });
 
+    // isMyProfile được tính SAU KHI isAuthReady = true để đảm bảo chính xác
     const isMyProfile = useMemo(
-        () => !!currentUser && currentUser.Email.toLowerCase() === email.toLowerCase(),
-        [currentUser, email]
+        () => isAuthReady && !!currentUser && currentUser.Email.toLowerCase() === email.toLowerCase(),
+        [isAuthReady, currentUser, email]
     );
 
-    // ── Load data ───────────────────────────────────────────────────────────────
+    // ── Load data ─────────────────────────────────────────────────────────────────
+    // QUAN TRỌNG: Chỉ chạy sau khi isAuthReady = true.
+    // Lúc đó ta biết chắc currentUser là gì → không bao giờ fetch 2 lần.
     useEffect(() => {
+        // Chờ auth context đọc xong sessionStorage
+        if (!isAuthReady) return;
+
         let cancelled = false;
 
         (async () => {
@@ -189,35 +210,35 @@ export default function ProfilePage({ params }: PageProps) {
             setError(null);
             try {
                 let user: Account;
-                let allArticles: ScientificArticle[];
 
                 if (isMyProfile && currentUser) {
+                    // Đang xem profile của chính mình → dùng currentUser từ cache, không gọi API
                     user = currentUser;
-                    allArticles = await fetchArticles();
                 } else {
-                    const [foundUser, arts] = await Promise.all([
-                        getAccountByEmail(email),
-                        fetchArticles(),
-                    ]);
+                    // Xem profile người khác → fetch account (nhỏ, nhanh)
+                    const foundUser = await getAccountByEmail(email);
                     if (!foundUser) {
                         if (!cancelled) setError('Không tìm thấy người dùng.');
                         return;
                     }
                     user = foundUser;
-                    allArticles = arts;
                 }
 
+                // fetchArticlesCached(): lần đầu ~2-3s, lần sau trả về ngay từ bộ nhớ
+                const allArticles = await fetchArticlesCached();
+
                 if (cancelled) return;
-                setProfileUser(user);
-                setNewName(user['Tên tài khoản']);
-                setUserArticles(
-                    sortArticles(
-                        allArticles.filter(
-                            (a: ScientificArticle) =>
-                                a.SubmitterEmail.toLowerCase() === email.toLowerCase()
-                        )
+
+                const filtered = sortArticles(
+                    allArticles.filter(
+                        (a: ScientificArticle) =>
+                            a.SubmitterEmail.toLowerCase() === email.toLowerCase()
                     )
                 );
+
+                setProfileUser(user);
+                setNewName(user['Tên tài khoản']);
+                setUserArticles(filtered);
             } catch {
                 if (!cancelled) setError('Không thể tải dữ liệu hồ sơ.');
             } finally {
@@ -226,9 +247,21 @@ export default function ProfilePage({ params }: PageProps) {
         })();
 
         return () => { cancelled = true; };
-    }, [email, currentUser?.Email]); // eslint-disable-line react-hooks/exhaustive-deps
+        // Chạy lại khi: email thay đổi (navigate profile khác) HOẶC isAuthReady vừa bật
+        // isMyProfile bao gồm currentUser.Email nên đã cover trường hợp login/logout
+    }, [email, isAuthReady, isMyProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Derived stats ───────────────────────────────────────────────────────────
+    // Sync tên hiển thị khi currentUser.Tên thay đổi (sau updateUsername) — KHÔNG re-fetch
+    useEffect(() => {
+        if (isMyProfile && currentUser && profileUser) {
+            setProfileUser(prev =>
+                prev ? { ...prev, 'Tên tài khoản': currentUser['Tên tài khoản'] } : prev
+            );
+            setNewName(currentUser['Tên tài khoản']);
+        }
+    }, [currentUser?.['Tên tài khoản']]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Derived stats ─────────────────────────────────────────────────────────────
     const stats = useMemo(() => ({
         total:    userArticles.length,
         approved: userArticles.filter(a => a.Status === 'Approved').length,
@@ -245,7 +278,7 @@ export default function ProfilePage({ params }: PageProps) {
         [userArticles, articlePage]
     );
 
-    // ── Password helpers ────────────────────────────────────────────────────────
+    // ── Password helpers ──────────────────────────────────────────────────────────
     const validatePw = useCallback((pass: string) => {
         const c = {
             length:      pass.length >= 8,
@@ -260,19 +293,13 @@ export default function ProfilePage({ params }: PageProps) {
 
     const handleNewPwChange = (v: string) => { setNewPw(v); validatePw(v); };
 
-    // ── Submit handlers ─────────────────────────────────────────────────────────
+    // ── Submit handlers ───────────────────────────────────────────────────────────
     const handleNameSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!isMyProfile || !currentUser) return;
         const trimmed = newName.trim();
-        if (trimmed.length < 3) {
-            addToast('Tên phải có ít nhất 3 ký tự.', 'error');
-            return;
-        }
-        if (trimmed === currentUser['Tên tài khoản']) {
-            addToast('Tên mới phải khác tên cũ.', 'error');
-            return;
-        }
+        if (trimmed.length < 3) { addToast('Tên phải có ít nhất 3 ký tự.', 'error'); return; }
+        if (trimmed === currentUser['Tên tài khoản']) { addToast('Tên mới phải khác tên cũ.', 'error'); return; }
         setIsUpdatingName(true);
         await updateUsername(trimmed);
         setIsUpdatingName(false);
@@ -287,9 +314,7 @@ export default function ProfilePage({ params }: PageProps) {
         const res = await updatePassword(currentPw, newPw);
         setIsUpdatingPw(false);
         if (res.success) {
-            setCurrentPw('');
-            setNewPw('');
-            setConfirmPw('');
+            setCurrentPw(''); setNewPw(''); setConfirmPw('');
             setPwCriteria({ length: false, uppercase: false, lowercase: false, number: false, specialChar: false });
         } else {
             setCurrentPw('');
@@ -301,8 +326,8 @@ export default function ProfilePage({ params }: PageProps) {
         await refreshCurrentUser();
     };
 
-    // ── Loading ─────────────────────────────────────────────────────────────────
-    if (isLoading) return (
+    // ── Loading ───────────────────────────────────────────────────────────────────
+    if (!isAuthReady || isLoading) return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
                 <motion.div
@@ -315,7 +340,7 @@ export default function ProfilePage({ params }: PageProps) {
         </div>
     );
 
-    // ── Error ───────────────────────────────────────────────────────────────────
+    // ── Error ─────────────────────────────────────────────────────────────────────
     if (error || !profileUser) return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
             <motion.div
@@ -336,7 +361,7 @@ export default function ProfilePage({ params }: PageProps) {
     const pwStrength   = Object.values(pwCriteria).filter(Boolean).length;
     const pwBarColor   = pwStrength <= 2 ? 'bg-red-400' : pwStrength <= 3 ? 'bg-amber-400' : 'bg-emerald-500';
 
-    // ── Render ──────────────────────────────────────────────────────────────────
+    // ── Render ────────────────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-gray-50">
 
@@ -361,10 +386,6 @@ export default function ProfilePage({ params }: PageProps) {
                             transition={{ type: 'spring', stiffness: 220, damping: 18 }}
                             className="relative shrink-0"
                         >
-                            {/*
-                             * AvatarUploader handles the upload UI (edit button, etc.).
-                             * We pass the converted URL so it renders the image correctly.
-                             */}
                             <AvatarUploader
                                 email={profileUser.Email}
                                 currentAvatarUrl={convertGoogleDriveUrl(profileUser.AvatarURL ?? '')}
@@ -444,7 +465,6 @@ export default function ProfilePage({ params }: PageProps) {
                         >
                             <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500" />
                             <div className="p-5">
-                                {/* Mini avatar preview in sidebar */}
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-green-600 shrink-0 flex items-center justify-center">
                                         <AvatarImage
@@ -460,22 +480,16 @@ export default function ProfilePage({ params }: PageProps) {
                                 </div>
                                 <div className="space-y-0 text-xs divide-y divide-gray-50">
                                     <div className="flex items-center justify-between py-2">
-                                        <span className="text-gray-400 flex items-center gap-1.5">
-                                            <Shield className="w-3.5 h-3.5" /> Vai trò
-                                        </span>
+                                        <span className="text-gray-400 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Vai trò</span>
                                         <span className="font-bold text-gray-700">{profileUser['Vai trò']}</span>
                                     </div>
                                     <div className="flex items-center justify-between py-2">
-                                        <span className="text-gray-400 flex items-center gap-1.5">
-                                            <FileText className="w-3.5 h-3.5" /> Đã đăng
-                                        </span>
+                                        <span className="text-gray-400 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> Đã đăng</span>
                                         <span className="font-bold text-gray-700">{stats.total} bài</span>
                                     </div>
                                     {isMyProfile && (
                                         <div className="flex items-center justify-between py-2">
-                                            <span className="text-gray-400 flex items-center gap-1.5">
-                                                <Wallet className="w-3.5 h-3.5" /> Số dư
-                                            </span>
+                                            <span className="text-gray-400 flex items-center gap-1.5"><Wallet className="w-3.5 h-3.5" /> Số dư</span>
                                             <span className="font-bold text-emerald-600">
                                                 {(profileUser.Money || 0).toLocaleString('vi-VN')}đ
                                             </span>
@@ -519,7 +533,7 @@ export default function ProfilePage({ params }: PageProps) {
                             </div>
                         </motion.div>
 
-                        {/* Nav — only own profile */}
+                        {/* Nav */}
                         {isMyProfile && (
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
@@ -743,7 +757,6 @@ export default function ProfilePage({ params }: PageProps) {
                                                             className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-100 bg-gray-50 focus:bg-white text-sm focus:border-emerald-400 focus:ring-2 focus:ring-emerald-50 focus:outline-none transition-all"
                                                         />
                                                     </div>
-
                                                     {newName.trim() && newName.trim() !== currentUser?.['Tên tài khoản'] && (
                                                         <motion.div
                                                             initial={{ opacity: 0, height: 0 }}
@@ -756,7 +769,6 @@ export default function ProfilePage({ params }: PageProps) {
                                                             </span>
                                                         </motion.div>
                                                     )}
-
                                                     <button
                                                         type="submit"
                                                         disabled={isUpdatingName}
@@ -782,22 +794,9 @@ export default function ProfilePage({ params }: PageProps) {
                                                     Đổi mật khẩu
                                                 </h3>
                                                 <form onSubmit={handlePwSubmit} className="space-y-4">
-                                                    <PwField
-                                                        id="currentPw"
-                                                        label="Mật khẩu hiện tại"
-                                                        value={currentPw}
-                                                        onChange={setCurrentPw}
-                                                        required
-                                                    />
-                                                    <PwField
-                                                        id="newPw"
-                                                        label="Mật khẩu mới"
-                                                        value={newPw}
-                                                        onChange={handleNewPwChange}
-                                                        required
-                                                    />
+                                                    <PwField id="currentPw" label="Mật khẩu hiện tại" value={currentPw} onChange={setCurrentPw} required />
+                                                    <PwField id="newPw" label="Mật khẩu mới" value={newPw} onChange={handleNewPwChange} required />
 
-                                                    {/* Strength meter */}
                                                     {newPw && (
                                                         <motion.div
                                                             initial={{ opacity: 0, height: 0 }}
@@ -808,9 +807,7 @@ export default function ProfilePage({ params }: PageProps) {
                                                                 {[...Array(5)].map((_, i) => (
                                                                     <div
                                                                         key={i}
-                                                                        className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
-                                                                            i < pwStrength ? pwBarColor : 'bg-gray-200'
-                                                                        }`}
+                                                                        className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${i < pwStrength ? pwBarColor : 'bg-gray-200'}`}
                                                                     />
                                                                 ))}
                                                             </div>
@@ -833,7 +830,6 @@ export default function ProfilePage({ params }: PageProps) {
                                                         error={!!confirmPw && confirmPw !== newPw}
                                                         errorMsg="Mật khẩu không khớp"
                                                     />
-
                                                     <button
                                                         type="submit"
                                                         disabled={isUpdatingPw}
