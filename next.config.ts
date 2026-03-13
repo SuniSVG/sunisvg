@@ -81,9 +81,9 @@ const nextConfig: NextConfig = {
         ignored: /.*/,
       };
     }
+    config.resolve.alias.canvas = false;
     return config;
   },
 };
 
 export default nextConfig;
-
