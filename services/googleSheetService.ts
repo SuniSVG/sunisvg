@@ -1,5 +1,4 @@
 import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuestion, ScientificArticle, ForumPost, ForumComment, CustomQuizQuestion, UserQuiz, Classroom, ClassMember, AssignedQuiz, ScheduleEvent, QuizResult, NewStudentCredential, Course, Book, SubscriptionPlan, UserSubscription, Purchase } from '@/types';
-import { cache as serverCache } from '@/lib/cache';
 
 // This is the correct, user-provided Google Apps Script URL.
 const APPS_SCRIPT_URL =
@@ -52,11 +51,19 @@ function decompress(data: string) {
 async function setLocalCache(key: string, data: any) {
   // Lưu cache 24h (86400s) để hỗ trợ SWR (Stale-While-Revalidate)
   // Dữ liệu cũ vẫn được trả về trong khi fetch mới chạy ngầm
-  await serverCache.set(`edifyx_cache_${key}`, data, 86400);
+  if (typeof window !== 'undefined') return;
+  try {
+    const { cache } = await import('@/lib/cache');
+    await cache.set(`edifyx_cache_${key}`, data, 86400);
+  } catch { /* ignore cache errors */ }
 }
 
 async function getLocalCache<T>(key: string): Promise<CacheEntry<T> | null> {
-  return await serverCache.get<CacheEntry<T>>(`edifyx_cache_${key}`);
+  if (typeof window !== 'undefined') return null;
+  try {
+    const { cache } = await import('@/lib/cache');
+    return await cache.get<CacheEntry<T>>(`edifyx_cache_${key}`);
+  } catch { return null; }
 }
 
 // --- REQUEST DEDUPE ---

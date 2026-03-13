@@ -21,6 +21,19 @@ import {
     UploadCloud
 } from 'lucide-react';
 
+// Helper lấy Google Drive ID
+const getDriveId = (url: string) => {
+    if (!url || !url.includes('google.com')) return null;
+    const match = url.match(/[-\w]{25,}/);
+    return match ? match[0] : null;
+};
+
+// Helper lấy link PDF thật từ viewer URL
+const extractPdf = (url: string) => {
+    const match = url.match(/file=([^&]+)/);
+    return match ? decodeURIComponent(match[1]) : url;
+};
+
 export default function SubmitArticlePage() {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
@@ -50,7 +63,16 @@ export default function SubmitArticlePage() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'documentUrl') {
+            const realUrl = extractPdf(value); // Tự động lấy link thật nếu là viewer
+            const driveId = getDriveId(realUrl);
+            // Tự động tạo thumbnail URL nếu là link Google Drive
+            const autoThumbnail = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w1000` : '';
+            
+            setFormData(prev => ({ ...prev, [name]: realUrl, thumbnailUrl: autoThumbnail || prev.thumbnailUrl }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,14 +289,35 @@ export default function SubmitArticlePage() {
                             </div>
 
                             {uploadType === 'link' ? (
-                                <input
-                                    type="url"
-                                    name="documentUrl"
-                                    value={formData.documentUrl}
-                                    onChange={handleChange}
-                                    placeholder="https://drive.google.com/..."
-                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none text-sm font-mono text-gray-600"
-                                />
+                                <div className="space-y-3">
+                                    <input
+                                        type="url"
+                                        name="documentUrl"
+                                        value={formData.documentUrl}
+                                        onChange={handleChange}
+                                        placeholder="https://drive.google.com/file/d/..."
+                                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none text-sm font-mono text-gray-600"
+                                    />
+                                    {formData.thumbnailUrl && (
+                                        <div className="relative w-full h-48 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                                            <img 
+                                                src={formData.thumbnailUrl} 
+                                                alt="Document Preview" 
+                                                className="w-full h-full object-contain" 
+                                                onError={(e) => {
+                                                    const target = e.currentTarget;
+                                                    const fallback = "https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg";
+                                                    if (target.src !== fallback) {
+                                                        target.src = fallback;
+                                                    }
+                                                }}
+                                            />
+                                            <div className="absolute top-2 right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm">
+                                                Preview tự động
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
                                 <div className="relative">
                                     <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer relative">

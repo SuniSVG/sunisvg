@@ -8,6 +8,7 @@ import type { ScientificArticle, Account, Badge } from '@/types';
 import { Icon } from '@/components/shared/Icon';
 import { getUserBadges } from '@/utils/badgeUtils';
 import { parseVNDateToDate } from '@/utils/dateUtils';
+import { PdfThumbnail } from '@/components/shared/PdfThumbnail';
 import { InlineMath, BlockMath } from 'react-katex';
 import 'katex/dist/katex.min.css';
 
@@ -33,6 +34,20 @@ const MathRenderer = React.memo(({ text }: { text: string }) => {
 });
 MathRenderer.displayName = 'MathRenderer';
 
+// Helper lấy ID từ link Drive (dùng cho thumbnail fallback)
+const getDriveId = (url: string) => {
+    if (!url) return null;
+    // Chỉ xử lý nếu là link Google để tránh match nhầm ID của các site khác (như toanmath)
+    if (!url.includes('google.com')) return null;
+    const match = url.match(/[-\w]{25,}/);
+    return match ? match[0] : null;
+};
+
+const extractPdf = (url: string) => {
+    const match = url.match(/file=([^&]+)/);
+    return match ? decodeURIComponent(match[1]) : url;
+};
+
 // ─── ArticleCard ─────────────────────────────────────────────────────────────
 
 const ArticleCard = React.memo<{ article: ScientificArticle }>(({ article }) => {
@@ -48,6 +63,15 @@ const ArticleCard = React.memo<{ article: ScientificArticle }>(({ article }) => 
         return { isNew, keywords };
     }, [article.SubmissionDate, article.Keywords]);
 
+    const pdfUrl = useMemo(() => {
+        const raw = article.DocumentURL;
+        if (!raw) return '';
+        const extracted = extractPdf(raw); // lấy từ file= param
+        return extracted || raw;
+    }, [article.DocumentURL]);
+
+    const driveId = getDriveId(pdfUrl);
+
     return (
         <article className="ac-card group">
             {/* Top accent */}
@@ -58,6 +82,27 @@ const ArticleCard = React.memo<{ article: ScientificArticle }>(({ article }) => 
                     <Icon name="sparkles" className="w-2.5 h-2.5" /> Mới
                 </span>
             )}
+
+            <div className="w-full h-40 mb-3 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 relative group-hover:shadow-sm transition-all">
+                {driveId ? (
+                    <img
+                        src={`https://drive.google.com/thumbnail?id=${driveId}&sz=w1000`}
+                        alt={article.Title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                            const target = e.currentTarget;
+                            const fallback = "https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg";
+                            if (target.src !== fallback) {
+                                target.src = fallback;
+                            }
+                        }}
+                    />
+                ) : (
+                    <PdfThumbnail pdfUrl={pdfUrl} alt={article.Title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                )}
+            </div>
 
             <Link href={`/article/${article.ID}`} className="block mb-3">
                 <h3 className="ac-title">
@@ -443,6 +488,7 @@ function ArticlesContent() {
                     letter-spacing: .04em; text-transform: uppercase;
                     box-shadow: 0 2px 8px rgba(234,88,12,.35);
                     animation: ar-pulse 2s ease infinite;
+                    z-index: 20;
                 }
                 .ac-title {
                     font-family: 'Bricolage Grotesque', sans-serif;
