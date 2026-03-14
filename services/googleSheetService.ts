@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 
 // This is the correct, user-provided Google Apps Script URL.
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbwuka_htbrAW8CMwolNidVu5fLhr6Gm5u19fikyohOLBuoQBVvzvcsDl4gAlRn6zil3/exec";
+  "https://script.google.com/macros/s/AKfycbzYiS0LH10VsdDBIJUWeG2mYYvvfdSRvcKoVQeJawB3Do4aCI8AjB1N-zWkB3jbGKCd/exec";
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -1804,5 +1804,120 @@ export const useCreditForCourse = async (email: string, courseId: string): Promi
         return { success: result.status === 'success', error: result.message };
     } catch (error: any) {
         return { success: false, error: error.message };
+    }
+};
+
+export interface PracticeQuestion {
+    questionId: string;
+    baiGiangID: string;
+    section: string;
+    questionText: string;
+    A?: string;
+    B?: string;
+    C?: string;
+    D?: string;
+    key: string;
+    answer: string;
+    videoUrl: string;
+    date: string;
+    type: 'MCQ' | 'TLN';
+}
+
+export const fetchPracticeQuestions = async (baiGiangID: string): Promise<PracticeQuestion[]> => {
+    try {
+        const [mcqRaw, tlnRaw] = await Promise.all([
+            fetchDataFromAppsScript<any>('Questions_ABCD'),
+            fetchDataFromAppsScript<any>('Questions_TLN')
+        ]);
+
+        const mcq: PracticeQuestion[] = mcqRaw
+            .filter(q => String(q.baiGiangID) === String(baiGiangID))
+            .map(q => ({
+                questionId: String(q.questionId || ''),
+                baiGiangID: String(q.baiGiangID || ''),
+                section: String(q.section || ''),
+                questionText: String(q.questionText || ''),
+                A: String(q.A || ''),
+                B: String(q.B || ''),
+                C: String(q.C || ''),
+                D: String(q.D || ''),
+                key: String(q.key || ''),
+                answer: String(q.answer || ''),
+                videoUrl: String(q.videoUrl || ''),
+                date: String(q.date || ''),
+                type: 'MCQ'
+            }));
+
+        const tln: PracticeQuestion[] = tlnRaw
+            .filter(q => String(q.baiGiangID) === String(baiGiangID))
+            .map(q => ({
+                questionId: String(q.questionId || ''),
+                baiGiangID: String(q.baiGiangID || ''),
+                section: String(q.section || ''),
+                questionText: String(q.questionText || ''),
+                key: String(q.key || ''),
+                answer: String(q.answer || ''),
+                videoUrl: String(q.videoUrl || ''),
+                date: String(q.date || ''),
+                type: 'TLN'
+            }));
+
+        return [...mcq, ...tln].sort((a, b) => {
+            // Ưu tiên sắp xếp theo số của ID câu hỏi
+            const numA = parseInt(a.questionId, 10);
+            const numB = parseInt(b.questionId, 10);
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return a.questionId.localeCompare(b.questionId);
+        });
+    } catch (error) {
+        console.error("Failed to fetch practice questions:", error);
+        return [];
+    }
+};
+
+export const searchPracticeQuestions = async (keyword: string): Promise<PracticeQuestion[]> => {
+    try {
+        const [mcqRaw, tlnRaw] = await Promise.all([
+            fetchDataFromAppsScript<any>('Questions_ABCD'),
+            fetchDataFromAppsScript<any>('Questions_TLN')
+        ]);
+        
+        const kw = keyword.toLowerCase().trim();
+        const match = (q: any) => 
+            String(q.questionText || '').toLowerCase().includes(kw) ||
+            String(q.baiGiangID || '').toLowerCase().includes(kw);
+
+        const mcq: PracticeQuestion[] = mcqRaw.filter(match).map((q: any) => ({
+            questionId: String(q.questionId || ''),
+            baiGiangID: String(q.baiGiangID || ''),
+            section: String(q.section || ''),
+            questionText: String(q.questionText || ''),
+            A: String(q.A || ''),
+            B: String(q.B || ''),
+            C: String(q.C || ''),
+            D: String(q.D || ''),
+            key: String(q.key || ''),
+            answer: String(q.answer || ''),
+            videoUrl: String(q.videoUrl || ''),
+            date: String(q.date || ''),
+            type: 'MCQ'
+        }));
+
+        const tln: PracticeQuestion[] = tlnRaw.filter(match).map((q: any) => ({
+            questionId: String(q.questionId || ''),
+            baiGiangID: String(q.baiGiangID || ''),
+            section: String(q.section || ''),
+            questionText: String(q.questionText || ''),
+            key: String(q.key || ''),
+            answer: String(q.answer || ''),
+            videoUrl: String(q.videoUrl || ''),
+            date: String(q.date || ''),
+            type: 'TLN'
+        }));
+
+        return [...mcq, ...tln].slice(0, 50); // Giới hạn 50 kết quả để tránh lag
+    } catch (error) {
+        console.error("Failed to search practice questions:", error);
+        return [];
     }
 };

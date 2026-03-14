@@ -7,8 +7,10 @@ import {
     fetchCourses, 
     fetchArticles, 
     fetchPremiumArticles, 
+    searchPracticeQuestions,
+    PracticeQuestion
 } from '@/services/googleSheetService';
-import type { Course, ScientificArticle, MedicalQuestion } from '@/types';
+import type { Course, ScientificArticle } from '@/types';
 import { Icon } from '@/components/shared/Icon';
 import { BookOpen, FileText, HelpCircle, Search, ArrowRight, Loader2 } from 'lucide-react';
 
@@ -20,7 +22,7 @@ function SearchContent() {
 
     const [courses, setCourses] = useState<Course[]>([]);
     const [articles, setArticles] = useState<ScientificArticle[]>([]);
-    const [questions, setQuestions] = useState<MedicalQuestion[]>([]);
+    const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'all' | 'courses' | 'articles' | 'questions'>('all');
@@ -35,10 +37,11 @@ function SearchContent() {
             setIsLoading(true);
             try {
                 // Fetch in parallel
-                const [coursesData, articlesData, premiumArticlesData] = await Promise.all([
+                const [coursesData, articlesData, premiumArticlesData, practiceQs] = await Promise.all([
                     fetchCourses().catch(() => []),
                     fetchArticles().catch(() => []),
                     fetchPremiumArticles().catch(() => []),
+                    searchPracticeQuestions(query).catch(() => []),
                 ]);
 
                 // Combine articles
@@ -63,6 +66,7 @@ function SearchContent() {
 
                 setCourses(filteredCourses);
                 setArticles(filteredArticles);
+                setQuestions(practiceQs);
 
             } catch (error) {
                 console.error("Search error:", error);
@@ -226,26 +230,35 @@ function SearchContent() {
                     {(activeTab === 'all' || activeTab === 'questions') && (
                         <ResultSection title="Câu hỏi ôn tập" icon="help-circle" count={questions.length}>
                             {questions.map(question => (
-                                <div 
-                                    key={question.ID} 
-                                    className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all"
+                                <Link 
+                                    key={question.questionId} 
+                                    href={`/practice/${question.baiGiangID}`}
+                                    className="group bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all flex flex-col"
                                 >
-                                    <div className="flex items-center gap-2 mb-3">
+                                    <div className="flex items-center justify-between mb-3">
                                         <span className="px-2 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-md">
-                                            Câu hỏi
+                                            Bài tập
                                         </span>
-                                        <span className="text-xs font-mono text-gray-400">#{question.ID}</span>
+                                        <span className="text-xs font-mono text-gray-400 group-hover:text-blue-600 transition-colors">
+                                            Bài giảng: #{question.baiGiangID}
+                                        </span>
                                     </div>
-                                    <p className="font-medium text-gray-800 mb-4 line-clamp-3">
-                                        {question.Question_Text}
-                                    </p>
-                                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                                        <div className="truncate">A. {question.Option_A}</div>
-                                        <div className="truncate">B. {question.Option_B}</div>
-                                        <div className="truncate">C. {question.Option_C}</div>
-                                        <div className="truncate">D. {question.Option_D}</div>
+                                    <div className="font-medium text-gray-800 mb-4 line-clamp-3">
+                                        {question.questionText?.replace(/\[IMG:.*?\]/g, '[Hình ảnh]')}
                                     </div>
-                                </div>
+                                    {question.type === 'MCQ' ? (
+                                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mt-auto">
+                                            <div className="truncate">A. {question.A?.replace(/\[IMG:.*?\]/g, '[Hình ảnh]')}</div>
+                                            <div className="truncate">B. {question.B?.replace(/\[IMG:.*?\]/g, '[Hình ảnh]')}</div>
+                                            <div className="truncate">C. {question.C?.replace(/\[IMG:.*?\]/g, '[Hình ảnh]')}</div>
+                                            <div className="truncate">D. {question.D?.replace(/\[IMG:.*?\]/g, '[Hình ảnh]')}</div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-gray-500 italic mt-auto">
+                                            Câu hỏi điền khuyết
+                                        </div>
+                                    )}
+                                </Link>
                             ))}
                         </ResultSection>
                     )}
