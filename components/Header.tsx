@@ -88,7 +88,7 @@ export default function Header() {
                     if (val.startsWith('2')) {
                       window.location.href = `/courses/${val}`;
                     } else if (parseInt(val, 10) < 1000000) {
-                      window.location.href = `/questions/${val}`;
+                      window.location.href = `/practice/${val}`;
                     } else {
                       // For other numbers, search generally
                       window.location.href = `/search?q=${encodeURIComponent(val)}`;
