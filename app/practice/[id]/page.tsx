@@ -7,38 +7,70 @@ import { Icon } from '@/components/shared/Icon';
 import Link from 'next/link';
 import HLSVideoPlayer from '@/components/shared/HLSVideoPlayer';
 
+const LaTeXImage = ({ src }: { src: string }) => {
+    const imgRef = React.useRef<HTMLImageElement>(null);
+
+    const handleLoad = () => {
+        const img = imgRef.current;
+        if (!img) return;
+        const { naturalHeight, naturalWidth } = img;
+        if (!naturalHeight) return;
+
+        // Đo font-size px thực của chính img element sau khi mount
+        const fs = parseFloat(window.getComputedStyle(img).fontSize);
+        // Ảnh LaTeX moon.vn render ở 3x → chia 3 ra px thật, rồi so với font
+        const RENDER_SCALE = 3;
+        const realPx = naturalHeight / RENDER_SCALE;
+
+        // Nếu ảnh thật vẫn lớn hơn 1.1 dòng chữ → scale xuống bằng 1 dòng chữ
+        const targetH = realPx > fs * 1.1 ? fs * 1.1 : realPx;
+        const targetW = (naturalWidth / naturalHeight) * targetH;
+
+        img.style.height = `${targetH}px`;
+        img.style.width = `${targetW}px`;
+        img.style.visibility = 'visible';
+    };
+
+    return (
+        <img
+            ref={imgRef}
+            src={src}
+            alt=""
+            onLoad={handleLoad}
+            style={{
+                display: 'inline',
+                visibility: 'hidden',
+                verticalAlign: 'middle',
+                margin: '0 1px',
+            }}
+        />
+    );
+};
+
 const ContentRenderer = ({ content }: { content: string }) => {
     if (!content) return null;
-    // Phân tách chuỗi để bóc tách thẻ [IMG:url] ra thành các element ảnh
     const parts = content.split(/\[IMG:(.*?)\]/);
-    
+
     return (
-        <div className="inline-block space-y-2 text-gray-800 leading-relaxed">
+        <span className="text-gray-800 leading-relaxed">
             {parts.map((part, index) => {
-                if (index % 2 === 1) { // Là link ảnh URL
-                    return (
-                        <img 
-                            key={index} 
-                            src={part} 
-                            alt="Minh họa câu hỏi" 
-                            className="inline-block max-w-full h-auto rounded-md shadow-sm align-middle my-1" 
-                        />
-                    );
+                if (index % 2 === 1) {
+                    return <LaTeXImage key={index} src={part} />;
                 }
-                // Đoạn text thường, xử lý xuống dòng
                 if (!part) return null;
+                const lines = part.split('\n');
                 return (
                     <span key={index}>
-                        {part.split('\n').map((line, i) => (
+                        {lines.map((line, i) => (
                             <React.Fragment key={i}>
                                 {line}
-                                {i !== part.split('\n').length - 1 && <br />}
+                                {i !== lines.length - 1 && <br />}
                             </React.Fragment>
                         ))}
                     </span>
                 );
             })}
-        </div>
+        </span>
     );
 };
 
@@ -95,20 +127,26 @@ export default function PracticePage() {
         <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto">
                 <div className="mb-8">
-                    <Link href="#" onClick={(e) => { e.preventDefault(); window.history.back(); }} className="inline-flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-medium mb-4">
+                    <Link
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); window.history.back(); }}
+                        className="inline-flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-medium mb-4"
+                    >
                         <Icon name="arrowLeft" className="w-4 h-4" />
                         Quay lại
                     </Link>
                     <h1 className="text-3xl font-bold text-gray-900">Bài tập Luyện tập</h1>
-                    <p className="text-gray-500 mt-2">Mã bài giảng: <span className="font-semibold text-blue-600">{params.id}</span></p>
+                    <p className="text-gray-500 mt-2">
+                        Mã bài giảng: <span className="font-semibold text-blue-600">{params.id}</span>
+                    </p>
                 </div>
 
                 <div className="space-y-8">
                     {questions.map((q, index) => {
                         const isRevealed = showExplanation.has(q.questionId);
                         const isMCQ = q.type === 'MCQ';
-                        const isCorrect = isMCQ 
-                            ? userAnswers[q.questionId] === q.key 
+                        const isCorrect = isMCQ
+                            ? userAnswers[q.questionId] === q.key
                             : userAnswers[q.questionId]?.trim().toLowerCase() === q.key.trim().toLowerCase();
 
                         return (
@@ -124,8 +162,8 @@ export default function PracticePage() {
                                                     {q.section}
                                                 </div>
                                             )}
-                                            
-                                            <div className="text-lg font-medium text-gray-900 mb-6">
+
+                                            <div className="text-lg font-medium text-gray-900 mb-6" style={{ lineHeight: 2.2 }}>
                                                 <ContentRenderer content={q.questionText} />
                                             </div>
 
@@ -149,6 +187,7 @@ export default function PracticePage() {
                                                                 onClick={() => !isRevealed && handleAnswerChange(q.questionId, opt)}
                                                                 disabled={isRevealed}
                                                                 className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${btnClass}`}
+                                                                style={{ lineHeight: 2.2 }}
                                                             >
                                                                 <span className="shrink-0 w-6 h-6 rounded-full bg-white border border-current flex items-center justify-center text-sm font-bold mt-0.5">
                                                                     {opt}
@@ -169,9 +208,9 @@ export default function PracticePage() {
                                                         disabled={isRevealed}
                                                         placeholder="Nhập câu trả lời của bạn..."
                                                         className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${
-                                                            isRevealed 
-                                                                ? isCorrect 
-                                                                    ? "border-green-500 bg-green-50 text-green-800" 
+                                                            isRevealed
+                                                                ? isCorrect
+                                                                    ? "border-green-500 bg-green-50 text-green-800"
                                                                     : "border-red-500 bg-red-50 text-red-800"
                                                                 : "border-gray-200 focus:border-blue-500"
                                                         }`}
@@ -195,7 +234,7 @@ export default function PracticePage() {
                                                         </span>
                                                     </div>
                                                     {q.answer && (
-                                                        <div className="prose max-w-none text-gray-700">
+                                                        <div className="text-gray-700" style={{ lineHeight: 2.2 }}>
                                                             <strong className="block mb-2 text-gray-900">Lời giải:</strong>
                                                             <ContentRenderer content={q.answer} />
                                                         </div>
@@ -207,11 +246,9 @@ export default function PracticePage() {
                                                                 Video chữa bài
                                                             </p>
                                                             {q.videoUrl.includes('.m3u8') ? (
-                                                                // HLS streaming (Moon.vn dùng định dạng này)
                                                                 <HLSVideoPlayer url={q.videoUrl} />
                                                             ) : (
-                                                                // Fallback: link thông thường
-                                                                <a 
+                                                                <a
                                                                     href={q.videoUrl}
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
