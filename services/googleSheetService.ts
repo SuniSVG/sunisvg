@@ -847,7 +847,7 @@ return rawDocs.map((doc: any) => ({
 };
 
 export const fetchAccounts = async (ignoreCache = false): Promise<Account[]> => {
-const fields = 'Tên tài khoản,Email,Mật khẩu,Gói đăng ký,Danh hiệu,Đã xác minh,Vai trò,Đặc biệt,Phái,Tuổi,Tổng số câu hỏi đã làm,Tổng số câu hỏi đã làm đúng,Tổng số câu hỏi đã làm trong tuần,Tổng số câu hỏi đã làm đúng trong tuần,Tokens,Tổng thời gian học,Thời gian học hôm nay,Ngày cập nhật học,Money,AvatarURL,Thông tin mô tả,Bạn bè,Trường,Owned,Goal,Voucher,Tiêu chí 1,Tiêu chí 2,Tiêu chí 3,Tiêu chí 4,Tiêu chí 5,Tiêu chí 6';
+const fields = 'Tên tài khoản,Email,Gói đăng ký,Danh hiệu,Đã xác minh,Vai trò,Đặc biệt,Phái,Tuổi,Tổng số câu hỏi đã làm,Tổng số câu hỏi đã làm đúng,Tổng số câu hỏi đã làm trong tuần,Tổng số câu hỏi đã làm đúng trong tuần,Tokens,Tổng thời gian học,Thời gian học hôm nay,Ngày cập nhật học,Money,AvatarURL,Trường,Goal,Tiêu chí 1,Tiêu chí 2,Tiêu chí 3,Tiêu chí 4,Tiêu chí 5,Tiêu chí 6';
 const rawAccounts = await fetchDataFromAppsScript<any>('Accounts', ignoreCache, false, fields); 
 return rawAccounts.map((acc: any) => ({
     'Tên tài khoản': String(acc['Tên tài khoản'] || '').trim(),
@@ -887,7 +887,7 @@ return rawAccounts.map((acc: any) => ({
 
 export const fetchArticles = async (): Promise<ScientificArticle[]> => {
     // Bỏ qua localStorage cho sheet này vì dữ liệu rất lớn, chỉ dùng memory cache.
-    const fields = 'ID,Title,Authors,Abstract,Keywords,Category,DocumentURL,SubmitterEmail,SubmissionDate,Status,Pending,Feedback,ThumbnailURL';
+    const fields = 'ID,Title,Authors,Category,SubmissionDate,Status,Pending,ThumbnailURL';
     const rawArticles = await fetchDataFromAppsScript<any>('Research_Accounts', false, true, fields);
     return rawArticles.map((art: any) => {
     const id = String(art['ID'] || '').trim();
@@ -921,7 +921,7 @@ export const fetchArticlesForSitemap = async (): Promise<Partial<ScientificArtic
 };
 
 export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
-    const fields = 'ID,Title,Authors,Abstract,Keywords,Category,DocumentURL,SubmitterEmail,SubmissionDate,Status,Feedback,Price,Part,ThumbnailURL';
+    const fields = 'ID,Title,Authors,Category,SubmissionDate,Status,Price,Part,ThumbnailURL';
     const rawArticles = await fetchDataFromAppsScript<any>('Premium', false, false, fields);
     return rawArticles.map((art: any) => {
         const id = String(art['ID'] || '').trim();
@@ -948,7 +948,7 @@ export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
 
 export const fetchCourses = async (): Promise<Course[]> => {
     try {
-        const fields = 'ID,Title,Authors,Abstract,Keywords,Category,SubmissionDate,Price,ImageURL,For,Update,Expiry,Sales,Goal,MainTeacher';
+        const fields = 'ID,Title,Authors,Category,SubmissionDate,Price,ImageURL,For,Update,Expiry,Sales,Goal,MainTeacher';
         const rawCourses = await fetchDataFromAppsScript<any>('Courses', false, false, fields);
         
         if (!Array.isArray(rawCourses)) {
@@ -1066,7 +1066,7 @@ export const registerUser = async (userData: Pick<Account, 'Tên tài khoản' |
 
 export const fetchBooks = async (): Promise<Book[]> => {
     try {
-        const fields = 'ID,Title,Authors,Abstract,Category,SubmissionDate,Price,ImageURL,DemoFileURL,Saled,Pages,MoreImageURLs,Coupon';
+        const fields = 'ID,Title,Authors,Category,SubmissionDate,Price,ImageURL,Saled,Pages,Coupon';
         const rawBooks = await fetchDataFromAppsScript<any>('Books', false, false, fields);
         if (!Array.isArray(rawBooks)) {
             console.error('fetchBooks: Expected array but got:', typeof rawBooks);
