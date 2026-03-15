@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 
 // This is the correct, user-provided Google Apps Script URL.
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbzYiS0LH10VsdDBIJUWeG2mYYvvfdSRvcKoVQeJawB3Do4aCI8AjB1N-zWkB3jbGKCd/exec";
+  "https://script.google.com/macros/s/AKfycbwUWL81EY0ptY8DM8wQ5TKyM6UVJLStzGj_ph2OuY535Amt_XrcoeFWqVtmd66O4w0S/exec";
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -1821,6 +1821,24 @@ export interface PracticeQuestion {
     videoUrl: string;
     date: string;
     type: 'MCQ' | 'TLN';
+}
+
+export async function fetchPracticeQuestionsWithMoon(
+  baiGiangID: string
+): Promise<PracticeQuestion[]> {
+  try {
+    // Thử lấy từ Moon API trước
+    const res = await fetch(`/api/moon-question?id=${baiGiangID}`);
+    if (res.ok) {
+      const q = await res.json();
+      return [q]; // Moon trả về 1 câu theo baiGiangID
+    }
+  } catch {
+    console.warn('[Moon] Lỗi → fallback Google Sheet');
+  }
+
+  // Fallback về Google Sheet cũ
+  return fetchPracticeQuestions(baiGiangID);
 }
 
 export const fetchPracticeQuestions = async (baiGiangID: string): Promise<PracticeQuestion[]> => {

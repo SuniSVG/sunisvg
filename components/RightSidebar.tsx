@@ -1197,6 +1197,38 @@ const cleanCategoryName = (name: string): string =>
         {/* ── Scrollable Top Section: Tools & Courses ── */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {/* ───────────────────────────────────────── */}
+        {/* Section 0 — Global Search                */}
+        {/* ───────────────────────────────────────── */}
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Tra cứu ID câu hỏi, tìm kiếm..." 
+            className="w-full pl-10 pr-4 py-2.5 bg-white border-[1.5px] border-emerald-100 rounded-[14px] text-xs font-semibold text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-emerald-400 focus:bg-emerald-50/50 hover:border-emerald-200 shadow-[0_2px_12px_rgba(16,185,129,0.04)] focus:shadow-[0_4px_20px_rgba(16,185,129,0.1)]"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const val = e.currentTarget.value.trim();
+                if (!val) return;
+                
+                const isNumeric = /^\d+$/.test(val);
+                if (isNumeric) {
+                  if (val.startsWith('2')) window.location.href = `/courses/${val}`;
+                  else if (parseInt(val, 10) < 1000000) window.location.href = `/practice/${val}`;
+                  else window.location.href = `/search?q=${encodeURIComponent(val)}`;
+                } else {
+                  window.location.href = `/search?q=${encodeURIComponent(val)}`;
+                }
+              }
+            }}
+          />
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-500">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+        </div>
+
+        {/* ───────────────────────────────────────── */}
         {/* Section 1 — Learning Tools               */}
         {/* ───────────────────────────────────────── */}
         <div className="sb-card p-4">

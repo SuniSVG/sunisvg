@@ -1,8 +1,35 @@
 import { MetadataRoute } from 'next';
+import { fetchArticles } from '@/services/googleSheetService';
+import { slugify } from '@/components/StructuredData';
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://sunisvg.edu.vn';
   
+  // Fetch data từ Google Sheets
+  let articleUrls: MetadataRoute.Sitemap = [];
+  let topicUrls: MetadataRoute.Sitemap = [];
+  try {
+    const articles = await fetchArticles();
+    
+    articleUrls = articles.map((article) => ({
+      url: `${baseUrl}/article/${slugify(article.Title)}-${article.ID}`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    }));
+
+    // Trích xuất các chủ đề duy nhất
+    const categories = Array.from(new Set(articles.map(a => a.Category).filter(Boolean)));
+    topicUrls = categories.map(cat => ({
+      url: `${baseUrl}/topics/${slugify(cat)}`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.9, // Topic page rất quan trọng, ưu tiên 0.9
+    }));
+  } catch (error) {
+    console.error("Lỗi khi tạo sitemap cho articles:", error);
+  }
+
   // Static pages
   const staticPages: MetadataRoute.Sitemap = [
     {
@@ -121,6 +148,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 
-  return [...staticPages];
+  return [...staticPages, ...topicUrls, ...articleUrls];
 }
-

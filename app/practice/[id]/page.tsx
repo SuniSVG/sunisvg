@@ -7,60 +7,48 @@ import { Icon } from '@/components/shared/Icon';
 import Link from 'next/link';
 import HLSVideoPlayer from '@/components/shared/HLSVideoPlayer';
 
-const LaTeXImage = ({ src }: { src: string }) => {
-    const imgRef = React.useRef<HTMLImageElement>(null);
+// ─── Ảnh inline nhỏ (cho đáp án, lời giải) ──────────────
+const LaTeXImage = ({ src }: { src: string }) => (
+    <img
+        src={src}
+        alt=""
+        style={{
+            display: 'inline-block',
+            height: '1.4em',
+            width: 'auto',
+            verticalAlign: 'middle',
+            margin: '0 2px',
+        }}
+    />
+);
 
-    const handleLoad = () => {
-        const img = imgRef.current;
-        if (!img) return;
-        const { naturalHeight, naturalWidth } = img;
-        if (!naturalHeight) return;
+// ─── Ảnh gốc không ép size (cho đề bài) ─────────────────
+const RawImage = ({ src }: { src: string }) => (
+    <img
+        src={src}
+        alt=""
+        style={{
+            display: 'inline-block',
+            width: 'auto',
+            maxWidth: '100%',
+            verticalAlign: 'middle',
+            margin: '0 2px',
+        }}
+    />
+);
 
-        // Đo font-size px thực của chính img element sau khi mount
-        const fs = parseFloat(window.getComputedStyle(img).fontSize);
-        // Ảnh LaTeX moon.vn render ở 3x → chia 3 ra px thật, rồi so với font
-        const RENDER_SCALE = 3;
-        const realPx = naturalHeight / RENDER_SCALE;
-
-        // Nếu ảnh thật vẫn lớn hơn 1.1 dòng chữ → scale xuống bằng 1 dòng chữ
-        const targetH = realPx > fs * 1.1 ? fs * 1.1 : realPx;
-        const targetW = (naturalWidth / naturalHeight) * targetH;
-
-        img.style.height = `${targetH}px`;
-        img.style.width = `${targetW}px`;
-        img.style.visibility = 'visible';
-    };
-
-    return (
-        <img
-            ref={imgRef}
-            src={src}
-            alt=""
-            onLoad={handleLoad}
-            style={{
-                display: 'inline',
-                visibility: 'hidden',
-                verticalAlign: 'middle',
-                margin: '0 1px',
-            }}
-        />
-    );
-};
-
+// ─── Renderer cho đáp án / lời giải (ép size) ────────────
 const ContentRenderer = ({ content }: { content: string }) => {
     if (!content) return null;
     const parts = content.split(/\[IMG:(.*?)\]/);
-
     return (
-        <span className="text-gray-800 leading-relaxed">
+        <span className="text-gray-800 leading-relaxed" style={{ verticalAlign: 'middle' }}>
             {parts.map((part, index) => {
-                if (index % 2 === 1) {
-                    return <LaTeXImage key={index} src={part} />;
-                }
+                if (index % 2 === 1) return <LaTeXImage key={index} src={part} />;
                 if (!part) return null;
                 const lines = part.split('\n');
                 return (
-                    <span key={index}>
+                    <span key={index} style={{ verticalAlign: 'middle' }}>
                         {lines.map((line, i) => (
                             <React.Fragment key={i}>
                                 {line}
@@ -74,6 +62,32 @@ const ContentRenderer = ({ content }: { content: string }) => {
     );
 };
 
+// ─── Renderer cho đề bài (ảnh gốc) ──────────────────────
+const QuestionRenderer = ({ content }: { content: string }) => {
+    if (!content) return null;
+    const parts = content.split(/\[IMG:(.*?)\]/);
+    return (
+        <span className="text-gray-800 leading-relaxed" style={{ verticalAlign: 'middle' }}>
+            {parts.map((part, index) => {
+                if (index % 2 === 1) return <RawImage key={index} src={part} />;
+                if (!part) return null;
+                const lines = part.split('\n');
+                return (
+                    <span key={index} style={{ verticalAlign: 'middle' }}>
+                        {lines.map((line, i) => (
+                            <React.Fragment key={i}>
+                                {line}
+                                {i !== lines.length - 1 && <br />}
+                            </React.Fragment>
+                        ))}
+                    </span>
+                );
+            })}
+        </span>
+    );
+};
+
+// ─── Practice Page ───────────────────────────────────────
 export default function PracticePage() {
     const params = useParams();
     const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
@@ -83,12 +97,41 @@ export default function PracticePage() {
 
     useEffect(() => {
         const loadData = async () => {
-            if (params.id) {
-                const data = await fetchPracticeQuestions(params.id as string);
-                setQuestions(data);
+            if (!params.id) { setLoading(false); return; }
+
+            console.log('[Practice] ═══ Load baiGiangID:', params.id, '═══');
+
+            try {
+                console.log('[Practice] Gọi /api/moon-question?id=' + params.id);
+                const res = await fetch(`/api/moon-question?id=${params.id}`);
+                console.log('[Practice] Moon API status:', res.status);
+
+                if (res.ok) {
+                    const q = await res.json();
+                    console.log('[Practice] ✅ Moon API trả về:', q);
+                    setQuestions([q]);
+                    setLoading(false);
+                    return;
+                }
+
+                const errJson = await res.json().catch(() => ({}));
+                console.warn('[Practice] Moon API lỗi:', res.status, errJson);
+            } catch (err) {
+                console.error('[Practice] Moon API exception:', err);
             }
+
+            console.log('[Practice] Fallback → Google Sheet...');
+            try {
+                const data = await fetchPracticeQuestions(params.id as string);
+                console.log('[Practice] Google Sheet trả về', data.length, 'câu');
+                setQuestions(data);
+            } catch (err) {
+                console.error('[Practice] Google Sheet cũng lỗi:', err);
+            }
+
             setLoading(false);
         };
+
         loadData();
     }, [params.id]);
 
@@ -108,7 +151,7 @@ export default function PracticePage() {
     if (loading) {
         return (
             <div className="min-h-screen flex justify-center items-center bg-gray-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600" />
             </div>
         );
     }
@@ -126,6 +169,7 @@ export default function PracticePage() {
     return (
         <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto">
+
                 <div className="mb-8">
                     <Link
                         href="#"
@@ -153,46 +197,51 @@ export default function PracticePage() {
                             <div key={q.questionId} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                                 <div className="p-6 sm:p-8">
                                     <div className="flex items-start gap-4">
+
                                         <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
                                             {index + 1}
                                         </div>
+
                                         <div className="flex-1 min-w-0">
+
                                             {q.section && (
                                                 <div className="text-sm font-semibold text-orange-600 mb-3 bg-orange-50 inline-block px-3 py-1 rounded-md">
                                                     {q.section}
                                                 </div>
                                             )}
 
-                                            <div className="text-lg font-medium text-gray-900 mb-6" style={{ lineHeight: 2.2 }}>
-                                                <ContentRenderer content={q.questionText} />
+                                            {/* Đề bài - ảnh gốc không ép size */}
+                                            <div className="text-lg font-medium text-gray-900 mb-6" style={{ lineHeight: 2.8 }}>
+                                                <QuestionRenderer content={q.questionText} />
                                             </div>
 
                                             {isMCQ ? (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                                                    {['A', 'B', 'C', 'D'].map((opt) => {
+                                                    {(['A', 'B', 'C', 'D'] as const).map((opt) => {
                                                         const optText = q[opt as keyof PracticeQuestion] as string;
                                                         if (!optText) return null;
                                                         const isSelected = userAnswers[q.questionId] === opt;
                                                         const isCorrectOption = isRevealed && q.key === opt;
                                                         const isWrongOption = isRevealed && isSelected && q.key !== opt;
 
-                                                        let btnClass = "border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700";
-                                                        if (isCorrectOption) btnClass = "border-green-500 bg-green-50 text-green-800 font-bold";
-                                                        else if (isWrongOption) btnClass = "border-red-500 bg-red-50 text-red-800";
-                                                        else if (isSelected) btnClass = "border-blue-500 bg-blue-50 text-blue-800 font-bold";
+                                                        let btnClass = 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700';
+                                                        if (isCorrectOption) btnClass = 'border-green-500 bg-green-50 text-green-800 font-bold';
+                                                        else if (isWrongOption) btnClass = 'border-red-500 bg-red-50 text-red-800';
+                                                        else if (isSelected) btnClass = 'border-blue-500 bg-blue-50 text-blue-800 font-bold';
 
                                                         return (
                                                             <button
                                                                 key={opt}
                                                                 onClick={() => !isRevealed && handleAnswerChange(q.questionId, opt)}
                                                                 disabled={isRevealed}
-                                                                className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${btnClass}`}
-                                                                style={{ lineHeight: 2.2 }}
+                                                                className={'flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ' + btnClass}
+                                                                style={{ lineHeight: 2.8 }}
                                                             >
-                                                                <span className="shrink-0 w-6 h-6 rounded-full bg-white border border-current flex items-center justify-center text-sm font-bold mt-0.5">
+                                                                <span className="shrink-0 w-6 h-6 rounded-full bg-white border border-current flex items-center justify-center text-sm font-bold">
                                                                     {opt}
                                                                 </span>
-                                                                <div className="flex-1 mt-0.5 overflow-hidden">
+                                                                <div className="flex-1 min-w-0">
+                                                                    {/* Đáp án - ảnh ép 1.4em */}
                                                                     <ContentRenderer content={optText} />
                                                                 </div>
                                                             </button>
@@ -207,13 +256,14 @@ export default function PracticePage() {
                                                         onChange={(e) => handleAnswerChange(q.questionId, e.target.value)}
                                                         disabled={isRevealed}
                                                         placeholder="Nhập câu trả lời của bạn..."
-                                                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${
-                                                            isRevealed
+                                                        className={
+                                                            'w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ' +
+                                                            (isRevealed
                                                                 ? isCorrect
-                                                                    ? "border-green-500 bg-green-50 text-green-800"
-                                                                    : "border-red-500 bg-red-50 text-red-800"
-                                                                : "border-gray-200 focus:border-blue-500"
-                                                        }`}
+                                                                    ? 'border-green-500 bg-green-50 text-green-800'
+                                                                    : 'border-red-500 bg-red-50 text-red-800'
+                                                                : 'border-gray-200 focus:border-blue-500')
+                                                        }
                                                     />
                                                 </div>
                                             )}
@@ -234,8 +284,9 @@ export default function PracticePage() {
                                                         </span>
                                                     </div>
                                                     {q.answer && (
-                                                        <div className="text-gray-700" style={{ lineHeight: 2.2 }}>
+                                                        <div className="text-gray-700" style={{ lineHeight: 2.8 }}>
                                                             <strong className="block mb-2 text-gray-900">Lời giải:</strong>
+                                                            {/* Lời giải - ảnh ép 1.4em */}
                                                             <ContentRenderer content={q.answer} />
                                                         </div>
                                                     )}
@@ -262,6 +313,7 @@ export default function PracticePage() {
                                                     )}
                                                 </div>
                                             )}
+
                                         </div>
                                     </div>
                                 </div>
@@ -269,6 +321,7 @@ export default function PracticePage() {
                         );
                     })}
                 </div>
+
             </div>
         </div>
     );

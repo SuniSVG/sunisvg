@@ -69,43 +69,6 @@ export default function Header() {
           </nav>
         </div>
 
-        {/* Search Bar */}
-        <div className="flex-1 max-w-xl hidden md:block">
-          <div className="relative">
-            <input 
-              type="text" 
-              placeholder="Tìm kiếm khoá học, bài thi..." 
-              className="w-full h-10 pl-10 pr-4 rounded-full border-none focus:ring-2 focus:ring-green-400 text-sm text-white bg-green-700 placeholder-green-200"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const val = e.currentTarget.value.trim();
-                  if (!val) return;
-                  
-                  // Check if input is numeric
-                  const isNumeric = /^\d+$/.test(val);
-
-                  if (isNumeric) {
-                    if (val.startsWith('2')) {
-                      window.location.href = `/courses/${val}`;
-                    } else if (parseInt(val, 10) < 1000000) {
-                      window.location.href = `/practice/${val}`;
-                    } else {
-                      // For other numbers, search generally
-                      window.location.href = `/search?q=${encodeURIComponent(val)}`;
-                    }
-                  } else {
-                    // For text/names, go to search page
-                    window.location.href = `/search?q=${encodeURIComponent(val)}`;
-                  }
-                }
-              }}
-            />
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-green-200">
-              <Icon name="search" className="w-4 h-4" />
-            </div>
-          </div>
-        </div>
-
         <div className="flex items-center gap-3 flex-shrink-0">
           {currentUser ? (
             <>

@@ -12,10 +12,12 @@
   "dependencies": {
     "@google/genai": "^1.17.0",
     "@hookform/resolvers": "^5.2.1",
+    "@netlify/blobs": "^10.7.2",
     "@netlify/plugin-nextjs": "^5.15.8",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "googleapis": "^171.4.0",
     "hls.js": "^1.6.15",
     "ioredis": "^5.10.0",
     "katex": "^0.16.33",
