@@ -1,5 +1,5 @@
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbwUWL81EY0ptY8DM8wQ5TKyM6UVJLStzGj_ph2OuY535Amt_XrcoeFWqVtmd66O4w0S/exec";
+  "https://script.google.com/macros/s/AKfycbz1eFVM5jrojILMcdR9yJcexFtjbbmVIbMakJ5Gw6agljfsB-OuutggHtRQlL38mn9C/exec";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
