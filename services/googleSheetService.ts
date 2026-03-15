@@ -847,47 +847,49 @@ return rawDocs.map((doc: any) => ({
 };
 
 export const fetchAccounts = async (ignoreCache = false): Promise<Account[]> => {
-const fields = 'Tên tài khoản,Email,Gói đăng ký,Danh hiệu,Đã xác minh,Vai trò,Đặc biệt,Phái,Tuổi,Tổng số câu hỏi đã làm,Tổng số câu hỏi đã làm đúng,Tổng số câu hỏi đã làm trong tuần,Tổng số câu hỏi đã làm đúng trong tuần,Tokens,Tổng thời gian học,Thời gian học hôm nay,Ngày cập nhật học,Money,AvatarURL,Trường,Goal,Tiêu chí 1,Tiêu chí 2,Tiêu chí 3,Tiêu chí 4,Tiêu chí 5,Tiêu chí 6';
+  // Chỉ lấy những thông tin thực sự cần thiết để render Avatar ở Forum, bài viết (giảm từ 4MB -> 300KB)
+  const fields = 'Tên tài khoản,Email,Danh hiệu,Đã xác minh,Vai trò,AvatarURL';
 const rawAccounts = await fetchDataFromAppsScript<any>('Accounts', ignoreCache, false, fields); 
 return rawAccounts.map((acc: any) => ({
     'Tên tài khoản': String(acc['Tên tài khoản'] || '').trim(),
     'Email': String(acc['Email'] || '').trim(),
-    'Mật khẩu': String(acc['Mật khẩu'] || ''), // Do not trim passwords
-    'Gói đăng ký': String(acc['Gói đăng ký'] || '').trim(),
+    'Mật khẩu': '',
+    'Gói đăng ký': '',
     'Danh hiệu': String(acc['Danh hiệu'] || '').trim(),
     'Đã xác minh': String(acc['Đã xác minh'] || '').trim(),
     'Vai trò': String(acc['Vai trò'] || '').trim() as 'Sinh viên' | 'Nhà nghiên cứu tự do' | 'Học sinh' | 'Nhà báo (nhà tuyển dụng)',
-    'Đặc biệt': String(acc['Đặc biệt'] || '').trim(),
-    'Phái': String(acc['Phái'] || '').trim() as 'Chính Đạo' | 'Tà Đạo',
-    'Tuổi': parseInt(acc['Tuổi'] || '0', 10) || 0,
-    'Tổng số câu hỏi đã làm': parseInt(acc['Tổng số câu hỏi đã làm'] || '0', 10) || 0,
-    'Tổng số câu hỏi đã làm đúng': parseInt(acc['Tổng số câu hỏi đã làm đúng'] || '0', 10) || 0,
-    'Tổng số câu hỏi đã làm trong tuần': parseInt(acc['Tổng số câu hỏi đã làm trong tuần'] || '0', 10) || 0,
-    'Tổng số câu hỏi đã làm đúng trong tuần': parseInt(acc['Tổng số câu hỏi đã làm đúng trong tuần'] || '0', 10) || 0,
-    'Tokens': parseInt(acc['Tokens'] || '0', 10) || 0,
-    'Tổng thời gian học': parseInt(acc['Tổng thời gian học'] || '0', 10) || 0,
-    'Thời gian học hôm nay': parseInt(acc['Thời gian học hôm nay'] || '0', 10) || 0,
-    'Ngày cập nhật học': String(acc['Ngày cập nhật học'] || '').trim(),
-    'Money': parseInt(acc['Money'] || '0', 10) || 0,
+    'Đặc biệt': '',
+    'Phái': 'Chính Đạo',
+    'Tuổi': 0,
+    'Tổng số câu hỏi đã làm': 0,
+    'Tổng số câu hỏi đã làm đúng': 0,
+    'Tổng số câu hỏi đã làm trong tuần': 0,
+    'Tổng số câu hỏi đã làm đúng trong tuần': 0,
+    'Tokens': 0,
+    'Tổng thời gian học': 0,
+    'Thời gian học hôm nay': 0,
+    'Ngày cập nhật học': '',
+    'Money': 0,
     'AvatarURL': String(acc['AvatarURL'] || '').trim(),
-    'Thông tin mô tả': String(acc['Thông tin mô tả'] || '').trim(),
-    'Bạn bè': String(acc['Bạn bè'] || '').trim(),
-    'Trường': String(acc['Trường'] || '').trim(), // Thêm trường học để lọc
-    'Owned': String(acc['Owned'] || '').trim(),
-    'Goal': String(acc['Goal'] || '').trim(),
-    'Voucher': String(acc['Voucher'] || '').trim(),
-    'Tiêu chí 1': acc['Tiêu chí 1'] ?? null,
-    'Tiêu chí 2': acc['Tiêu chí 2'] ?? null,
-    'Tiêu chí 3': acc['Tiêu chí 3'] ?? null,
-    'Tiêu chí 4': acc['Tiêu chí 4'] ?? null,
-    'Tiêu chí 5': acc['Tiêu chí 5'] ?? null,
-    'Tiêu chí 6': acc['Tiêu chí 6'] ?? null,
+    'Thông tin mô tả': '',
+    'Bạn bè': '',
+    'Trường': '',
+    'Owned': '',
+    'Goal': '',
+    'Voucher': '',
+    'Tiêu chí 1': null,
+    'Tiêu chí 2': null,
+    'Tiêu chí 3': null,
+    'Tiêu chí 4': null,
+    'Tiêu chí 5': null,
+    'Tiêu chí 6': null,
 }));
 };
 
 export const fetchArticles = async (): Promise<ScientificArticle[]> => {
     // Bỏ qua localStorage cho sheet này vì dữ liệu rất lớn, chỉ dùng memory cache.
-    const fields = 'ID,Title,Authors,Category,SubmissionDate,Status,Pending,ThumbnailURL';
+    // Đã bỏ ThumbnailURL và Authors để tiết kiệm ~5MB dung lượng payload
+    const fields = 'ID,Title,Category,SubmissionDate,Status,Pending';
     const rawArticles = await fetchDataFromAppsScript<any>('Research_Accounts', false, true, fields);
     return rawArticles.map((art: any) => {
     const id = String(art['ID'] || '').trim();
@@ -895,16 +897,16 @@ export const fetchArticles = async (): Promise<ScientificArticle[]> => {
         ID: id,
         SM_DOI: `080727${id}`,
         Title: String(art['Title'] || '').trim(),
-        Authors: String(art['Authors'] || '').trim(),
-        Abstract: String(art['Abstract'] || '').trim(),
-        Keywords: String(art['Keywords'] || '').trim(),
+        Authors: '',
+        Abstract: '',
+        Keywords: '',
         Category: String(art['Category'] || '').trim(),
-        DocumentURL: String(art['DocumentURL'] || '').trim(),
-        SubmitterEmail: String(art['SubmitterEmail'] || '').trim(),
+        DocumentURL: '',
+        SubmitterEmail: '',
         SubmissionDate: String(art['SubmissionDate'] || '').trim(),
         Status: String(art['Pending'] || art['Status'] || 'Pending').trim(), 
-        Feedback: String(art['Feedback'] || '').trim(),
-        ThumbnailURL: String(art['ThumbnailURL'] || '').trim(),
+        Feedback: '',
+        ThumbnailURL: '',
     };
     });
 };
@@ -921,7 +923,8 @@ export const fetchArticlesForSitemap = async (): Promise<Partial<ScientificArtic
 };
 
 export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
-    const fields = 'ID,Title,Authors,Category,SubmissionDate,Status,Price,Part,ThumbnailURL';
+    // Đã bỏ ThumbnailURL và Authors
+    const fields = 'ID,Title,Category,SubmissionDate,Status,Price,Part';
     const rawArticles = await fetchDataFromAppsScript<any>('Premium', false, false, fields);
     return rawArticles.map((art: any) => {
         const id = String(art['ID'] || '').trim();
@@ -929,18 +932,18 @@ export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
             ID: id,
             SM_DOI: `080727${id}`,
             Title: String(art['Title'] || '').trim(),
-            Authors: String(art['Authors'] || '').trim(),
-            Abstract: String(art['Abstract'] || '').trim(),
-            Keywords: String(art['Keywords'] || '').trim(),
+            Authors: '',
+            Abstract: '',
+            Keywords: '',
             Category: String(art['Category'] || '').trim(),
-            DocumentURL: String(art['DocumentURL'] || '').trim(),
-            SubmitterEmail: String(art['SubmitterEmail'] || '').trim(),
+            DocumentURL: '',
+            SubmitterEmail: '',
             SubmissionDate: String(art['SubmissionDate'] || '').trim(),
             Status: String(art['Status'] || 'Approved').trim() as 'Pending' | 'Approved' | 'Rejected',
-            Feedback: String(art['Feedback'] || '').trim(),
+            Feedback: '',
             Price: String(art['Price'] || '0').trim().replace(/,/g, ''),
             Part: String(art['Part'] || '').trim(),
-            ThumbnailURL: String(art['ThumbnailURL'] || '').trim(),
+            ThumbnailURL: '',
         };
     });
 };
