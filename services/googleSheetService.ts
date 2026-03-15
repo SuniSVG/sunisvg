@@ -847,7 +847,8 @@ return rawDocs.map((doc: any) => ({
 };
 
 export const fetchAccounts = async (ignoreCache = false): Promise<Account[]> => {
-const rawAccounts = await fetchDataFromAppsScript<any>('Accounts', ignoreCache); 
+const fields = 'Tên tài khoản,Email,Mật khẩu,Gói đăng ký,Danh hiệu,Đã xác minh,Vai trò,Đặc biệt,Phái,Tuổi,Tổng số câu hỏi đã làm,Tổng số câu hỏi đã làm đúng,Tổng số câu hỏi đã làm trong tuần,Tổng số câu hỏi đã làm đúng trong tuần,Tokens,Tổng thời gian học,Thời gian học hôm nay,Ngày cập nhật học,Money,AvatarURL,Thông tin mô tả,Bạn bè,Trường,Owned,Goal,Voucher,Tiêu chí 1,Tiêu chí 2,Tiêu chí 3,Tiêu chí 4,Tiêu chí 5,Tiêu chí 6';
+const rawAccounts = await fetchDataFromAppsScript<any>('Accounts', ignoreCache, false, fields); 
 return rawAccounts.map((acc: any) => ({
     'Tên tài khoản': String(acc['Tên tài khoản'] || '').trim(),
     'Email': String(acc['Email'] || '').trim(),
@@ -906,6 +907,17 @@ export const fetchArticles = async (): Promise<ScientificArticle[]> => {
         ThumbnailURL: String(art['ThumbnailURL'] || '').trim(),
     };
     });
+};
+
+export const fetchArticlesForSitemap = async (): Promise<Partial<ScientificArticle>[]> => {
+    const fields = 'ID,Title,Category,SubmissionDate';
+    const rawArticles = await fetchDataFromAppsScript<any>('Research_Accounts', false, false, fields);
+    return rawArticles.map((art: any) => ({
+        ID: String(art['ID'] || '').trim(),
+        Title: String(art['Title'] || '').trim(),
+        Category: String(art['Category'] || '').trim(),
+        SubmissionDate: String(art['SubmissionDate'] || '').trim(),
+    }));
 };
 
 export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
@@ -999,7 +1011,8 @@ export const fetchCourseDetail = async (courseId: string): Promise<{ course: Cou
 };
 
 export const fetchForumPosts = async (ignoreCache: boolean = false, skipLocalCache: boolean = false): Promise<ForumPost[]> => {
-const rawPosts = await fetchDataFromAppsScript<any>('Forum_Posts', ignoreCache, skipLocalCache);
+const fields = 'ID,Title,Content,AuthorEmail,AuthorName,Channel,Timestamp,TimeStamp,Date,Time,Upvotes,UpvotedBy,ImageURLs,DocURLs';
+const rawPosts = await fetchDataFromAppsScript<any>('Forum_Posts', ignoreCache, skipLocalCache, fields);
 return rawPosts.map((p: any) => ({
     ID: String(p.ID || '').trim(),
     Title: String(p.Title || '').trim().replace(/^\\\|\//, ''),
@@ -1016,7 +1029,8 @@ return rawPosts.map((p: any) => ({
 };
 
 export const fetchForumComments = async (ignoreCache: boolean = false, skipLocalCache: boolean = false): Promise<ForumComment[]> => {
-const rawComments = await fetchDataFromAppsScript<any>('Forum_Comments', ignoreCache, skipLocalCache);
+const fields = 'ID,PostID,ParentID,Content,AuthorEmail,AuthorName,Timestamp,TimeStamp,Date,Time,ImageURLs,DocURLs';
+const rawComments = await fetchDataFromAppsScript<any>('Forum_Comments', ignoreCache, skipLocalCache, fields);
 return rawComments.map((c: any) => ({
     ID: String(c.ID || '').trim(),
     PostID: String(c.PostID || '').trim(),
