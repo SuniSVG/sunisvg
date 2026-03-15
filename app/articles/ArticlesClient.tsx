@@ -106,10 +106,6 @@ export default function ArticlesClient({ initialArticles, initialAccounts }: Art
                     </p>
                     
                     <div className="ar-hero-actions">
-                        <Link href="/submit" className="ar-submit-btn">
-                            <Upload className="w-5 h-5 shrink-0" />
-                            Đóng góp tài liệu
-                        </Link>
                         <div className="ar-stat">
                             <div className="ar-stat-icon">
                                 <Icon name="book" className="w-5 h-5 text-white" />
