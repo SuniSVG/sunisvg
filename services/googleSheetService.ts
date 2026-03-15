@@ -237,10 +237,11 @@ const revalidationRequests = new Map<string, Promise<any>>();
 const fetchDataFromAppsScript = async <T>(
   sheetName: string,
   ignoreCache = false,
-  skipLocalCache = false
+  skipLocalCache = false,
+  fields?: string
 ): Promise<T[]> => {
 
-  const cacheKey = `post:${sheetName}`;
+  const cacheKey = fields ? `post:${sheetName}_${fields.replace(/[\s,]/g, '_')}` : `post:${sheetName}`;
   const isHugeSheet = sheetName === 'Research_Accounts' || sheetName === 'Questions_ABCD' || sheetName === 'Questions_TLN';
   const timeoutLimit = isHugeSheet ? 60000 : 25000;
 
@@ -257,8 +258,11 @@ const fetchDataFromAppsScript = async <T>(
 
     if (stale && !revalidationRequests.has(cacheKey)) {
 
+      const params: any = { sheetName };
+      if (fields) params.fields = fields;
+
       const revalidate = getFromAppsScript("getSheetData", {
-        sheetName,
+        ...params,
         ignoreCache: true // Force refresh on server side if needed, though GAS handles its own cache
       }, 2, timeoutLimit, isHugeSheet)
       .then(res => {
@@ -293,7 +297,10 @@ const fetchDataFromAppsScript = async <T>(
 
   let result;
   try {
-    result = await getFromAppsScript("getSheetData", { sheetName }, 2, timeoutLimit, isHugeSheet);
+    const params: Record<string, any> = { sheetName };
+    if (fields) params.fields = fields;
+
+    result = await getFromAppsScript("getSheetData", params, 2, timeoutLimit, isHugeSheet);
     
     // Fallback to POST if GET returns the default "API running" message (Old Deployment)
     if (result.status === "ok" && result.message === "API running") {
@@ -302,7 +309,8 @@ const fetchDataFromAppsScript = async <T>(
   } catch (e) {
     result = await postToAppsScript({
       action: "getSheetData",
-      sheetName
+      sheetName,
+      ...(fields ? { fields } : {})
     }, 2, timeoutLimit, isHugeSheet);
   }
 
@@ -878,7 +886,8 @@ return rawAccounts.map((acc: any) => ({
 
 export const fetchArticles = async (): Promise<ScientificArticle[]> => {
     // Bỏ qua localStorage cho sheet này vì dữ liệu rất lớn, chỉ dùng memory cache.
-    const rawArticles = await fetchDataFromAppsScript<any>('Research_Accounts', false, true);
+    const fields = 'ID,Title,Authors,Abstract,Keywords,Category,DocumentURL,SubmitterEmail,SubmissionDate,Status,Pending,Feedback,ThumbnailURL';
+    const rawArticles = await fetchDataFromAppsScript<any>('Research_Accounts', false, true, fields);
     return rawArticles.map((art: any) => {
     const id = String(art['ID'] || '').trim();
     return {
@@ -900,7 +909,8 @@ export const fetchArticles = async (): Promise<ScientificArticle[]> => {
 };
 
 export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
-    const rawArticles = await fetchDataFromAppsScript<any>('Premium');
+    const fields = 'ID,Title,Authors,Abstract,Keywords,Category,DocumentURL,SubmitterEmail,SubmissionDate,Status,Feedback,Price,Part,ThumbnailURL';
+    const rawArticles = await fetchDataFromAppsScript<any>('Premium', false, false, fields);
     return rawArticles.map((art: any) => {
         const id = String(art['ID'] || '').trim();
         return {
@@ -926,7 +936,8 @@ export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
 
 export const fetchCourses = async (): Promise<Course[]> => {
     try {
-        const rawCourses = await fetchDataFromAppsScript<any>('Courses');
+        const fields = 'ID,Title,Authors,Abstract,Keywords,Category,SubmissionDate,Price,ImageURL,For,Update,Expiry,Sales,Goal,MainTeacher';
+        const rawCourses = await fetchDataFromAppsScript<any>('Courses', false, false, fields);
         
         if (!Array.isArray(rawCourses)) {
             console.error('fetchCourses: Expected array but got:', typeof rawCourses);
@@ -1041,7 +1052,8 @@ export const registerUser = async (userData: Pick<Account, 'Tên tài khoản' |
 
 export const fetchBooks = async (): Promise<Book[]> => {
     try {
-        const rawBooks = await fetchDataFromAppsScript<any>('Books');
+        const fields = 'ID,Title,Authors,Abstract,Category,SubmissionDate,Price,ImageURL,DemoFileURL,Saled,Pages,MoreImageURLs,Coupon';
+        const rawBooks = await fetchDataFromAppsScript<any>('Books', false, false, fields);
         if (!Array.isArray(rawBooks)) {
             console.error('fetchBooks: Expected array but got:', typeof rawBooks);
             return [];
