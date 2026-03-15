@@ -179,7 +179,8 @@ const postToAppsScript = async (
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const response = await fetch('/api/apps-script', {
+      const baseUrl = typeof window !== 'undefined' ? '/api/apps-script' : APPS_SCRIPT_URL;
+      const response = await fetch(baseUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload),
@@ -343,9 +344,10 @@ async function cachedPost<T>(cacheKey: string, body: object, ttl = CACHE_TTL): P
   const hit = clientCache.get(cacheKey);
   if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
 
-  const res = await fetch('/api/apps-script', {
+  const baseUrl = typeof window !== 'undefined' ? '/api/apps-script' : APPS_SCRIPT_URL;
+  const res = await fetch(baseUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(body)
   });
   const data = await res.json();

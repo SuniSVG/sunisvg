@@ -1,35 +1,8 @@
 import { Metadata } from 'next';
 import ArticleClient from './ArticleClient';
-import { fetchArticles, fetchPremiumArticles } from '@/services/googleSheetService';
-import type { ScientificArticle } from '@/types';
 
 export const revalidate = 3600;
 export const dynamicParams = true; // Bật cờ này để cho phép render động các URL chưa được build sẵn
-
-function getPreviewUrl(article: ScientificArticle): string {
-    if (article.ThumbnailURL) return article.ThumbnailURL;
-    if (!article.DocumentURL) return '';
-
-    const driveMatch = article.DocumentURL.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (driveMatch) {
-        return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1000`;
-    }
-
-    if (article.DocumentURL.includes('toanmath.com')) {
-        if (article.DocumentURL.includes('/wp-content/uploads/')) {
-            return article.DocumentURL.replace('.pdf', '.png');
-        }
-        
-        const fileName = article.DocumentURL.split('/').pop()?.replace('.pdf', '.png');
-        let year = '2026', month = '03';
-        if (article.SubmissionDate) {
-            const m = article.SubmissionDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-            if (m) { month = m[2].padStart(2, '0'); year = m[3]; }
-        }
-        return `https://toanmath.com/wp-content/uploads/${year}/${month}/${fileName}`;
-    }
-    return '';
-}
 
 // Thêm hàm này để tạo sẵn các route tĩnh
 export async function generateStaticParams() {
@@ -42,33 +15,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     const resolvedParams = await params;
     const id = resolvedParams.id;
     
-    let article: ScientificArticle | undefined;
-
-    try {
-        const [allArticles, premiumArticles] = await Promise.all([
-            fetchArticles(),
-            fetchPremiumArticles()
-        ]);
-        article = allArticles.find(a => a.ID === id) || premiumArticles.find(a => a.ID === id);
-    } catch (error) {
-        console.error("Metadata fetch error:", error);
-    }
-
-    if (!article) {
-        return {
-            title: 'Không tìm thấy tài liệu | SuniSVG',
-        };
-    }
-    
-    const ogImage = getPreviewUrl(article);
+    // Lược bỏ fetch toàn bộ sheet khổng lồ tại Server để chống hoàn toàn lỗi 500 (Timeout/OOM).
+    // ArticleClient ở phía trình duyệt sẽ vẫn fetch và hiển thị dữ liệu bình thường.
 
     return {
-        title: `${article.Title} - SuniSVG`,
-        description: article.Abstract || `Tài liệu ${article.Title} môn ${article.Category} chuẩn cấu trúc Bộ GD&ĐT.`,
+        title: `Tài liệu #${id} - SuniSVG`,
+        description: `Xem chi tiết và tải xuống tài liệu #${id} chuẩn cấu trúc Bộ GD&ĐT tại SuniSVG.`,
         openGraph: {
-            title: `${article.Title} - SuniSVG`,
-            description: article.Abstract || `Tài liệu ${article.Title} môn ${article.Category}.`,
-            images: ogImage ? [ogImage] : [],
+            title: `Tài liệu #${id} - SuniSVG`,
+            description: `Xem chi tiết tài liệu #${id} tại SuniSVG.`,
             type: 'article',
         }
     };
