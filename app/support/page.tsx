@@ -116,33 +116,71 @@ export default function SupportPage() {
             title: "Tài khoản & Đăng nhập",
             icon: Users,
             items: [
-                { q: "Làm sao để đăng ký tài khoản?", isNew: false },
-                { q: "Quên mật khẩu - phải làm gì?", isNew: false },
-                { q: "Cách đổi thông tin cá nhân", isNew: true }
+                { q: "Làm sao để đăng ký tài khoản?", a: "Bạn có thể đăng ký tài khoản bằng cách nhấn vào nút 'Đăng nhập/Đăng ký' ở góc phải trên cùng của màn hình và điền thông tin email, mật khẩu để tạo tài khoản mới.", isNew: false },
+                { q: "Quên mật khẩu - phải làm gì?", a: "Tại trang đăng nhập, hãy chọn 'Quên mật khẩu', nhập địa chỉ email của bạn. Hệ thống sẽ gửi một mã OTP hoặc liên kết để bạn đặt lại mật khẩu mới.", isNew: false },
+                { q: "Cách đổi thông tin cá nhân", a: "Truy cập vào trang Hồ sơ cá nhân (Profile) của bạn, chọn mục Cài đặt và chỉnh sửa các thông tin cần thiết rồi nhấn Lưu.", isNew: true }
             ]
         },
         {
             title: "Đơn hàng & Giao hàng",
             icon: ShoppingBag,
             items: [
-                { q: "Kiểm tra trạng thái đơn hàng", isNew: false },
-                { q: "Thay đổi địa chỉ giao hàng", isNew: false },
-                { q: "Thời gian giao hàng dự kiến", isNew: false }
+                { q: "Kiểm tra trạng thái đơn hàng", a: "Truy cập mục 'Khóa học của tôi' hoặc lịch sử giao dịch trong trang cá nhân. Tại đây bạn có thể xem tiến độ xử lý và trạng thái thanh toán.", isNew: false },
+                { q: "Thay đổi thông tin liên hệ", a: "Bạn có thể thay đổi số điện thoại và địa chỉ trong phần 'Cài đặt tài khoản'. Nếu có sự cố về giao dịch, vui lòng liên hệ trực tiếp bộ phận CSKH.", isNew: false },
+                { q: "Thời gian kích hoạt khóa học", a: "Thông thường khóa học số và tài liệu sẽ được kích hoạt ngay lập tức sau khi bạn thanh toán và hệ thống xác nhận thành công.", isNew: false }
             ]
         },
         {
             title: "Sản phẩm & File SVG",
             icon: FileText,
             items: [
-                { q: "Cách tải file sau khi mua", isNew: false },
-                { q: "File bị lỗi không mở được", isNew: true },
-                { q: "Yêu cầu chỉnh sửa thiết kế", isNew: false }
+                { q: "Cách tải file sau khi mua", a: "File sẽ tự động xuất hiện trong mục 'Tài liệu của tôi' ngay sau khi thanh toán thành công. Bạn có thể xem trực tiếp hoặc tải xuống thiết bị.", isNew: false },
+                { q: "File bị lỗi không mở được", a: "Vui lòng kiểm tra lại phần mềm đọc file (PDF/Word) trên thiết bị. Nếu vẫn không được, hãy liên hệ hỗ trợ trực tuyến để được cấp lại liên kết tải.", isNew: true },
+                { q: "Hỗ trợ nội dung bài học", a: "Nếu có thắc mắc về nội dung tài liệu, bạn có thể tham gia Diễn đàn thảo luận hoặc liên hệ đội ngũ giáo viên qua email support@sunisvg.com.", isNew: false }
             ]
+        }
+    ];
+
+    // Tạo dữ liệu Structured Data (SEO Schema) cho FAQ và Contact
+    const schemaData = [
+        {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": faqCategories.flatMap(category => 
+                category.items.map(item => ({
+                    "@type": "Question",
+                    "name": item.q,
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": item.a
+                    }
+                }))
+            )
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "ContactPage",
+            "name": "Trung tâm Hỗ trợ - SuniSVG",
+            "description": "Trung tâm hỗ trợ khách hàng, giải đáp thắc mắc và liên hệ.",
+            "url": "https://sunisvg.com/support",
+            "contactPoint": {
+                "@type": "ContactPoint",
+                "telephone": "1900 xxxx",
+                "contactType": "customer support",
+                "email": "support@sunisvg.com",
+                "availableLanguage": ["Vietnamese", "English"]
+            }
         }
     ];
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+            {/* Bơm SEO Structured Data vào trang */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
+            />
+
             {/* Hero Section - Enhanced */}
             <div className="relative overflow-hidden">
                 {/* Animated gradient background */}
@@ -285,20 +323,22 @@ export default function SupportPage() {
                                 <ul className="space-y-4">
                                     {category.items.map((item, idx) => (
                                         <li key={idx}>
-                                            <a 
-                                                href="#" 
-                                                className="flex items-start gap-3 group/item hover:bg-gray-50 -mx-2 px-2 py-2 rounded-xl transition-all"
-                                            >
-                                                <ChevronRight className="w-5 h-5 mt-0.5 text-gray-400 group-hover/item:text-orange-500 group-hover/item:translate-x-1 transition-all shrink-0" />
-                                                <span className="text-gray-700 group-hover/item:text-gray-900 font-medium flex-1">
-                                                    {item.q}
-                                                </span>
-                                                {item.isNew && (
-                                                    <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-bold">
-                                                        Mới
+                                            <details className="group/item -mx-2 rounded-xl transition-all open:bg-orange-50/50">
+                                                <summary className="flex items-start gap-3 px-2 py-2 cursor-pointer list-none hover:bg-gray-50 rounded-xl transition-all [&::-webkit-details-marker]:hidden">
+                                                    <ChevronRight className="w-5 h-5 mt-0.5 text-gray-400 group-open/item:rotate-90 group-hover/item:text-orange-500 transition-transform shrink-0" />
+                                                    <span className="text-gray-700 group-hover/item:text-gray-900 group-open/item:text-orange-600 group-open/item:font-bold font-medium flex-1">
+                                                        {item.q}
                                                     </span>
-                                                )}
-                                            </a>
+                                                    {item.isNew && (
+                                                        <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-bold">
+                                                            Mới
+                                                        </span>
+                                                    )}
+                                                </summary>
+                                                <div className="pl-10 pr-4 pb-3 text-sm text-gray-600 leading-relaxed mt-1 animate-in fade-in slide-in-from-top-1">
+                                                    {item.a}
+                                                </div>
+                                            </details>
                                         </li>
                                     ))}
                                 </ul>
