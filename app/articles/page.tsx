@@ -4,7 +4,7 @@ import ArticlesClient from './ArticlesClient';
 import { Metadata } from 'next';
 import type { ScientificArticle, Account } from '@/types';
 
-export const revalidate = 600;
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
     title: "Thư viện 18.000+ Tài liệu học tập, Đề thi, Nghiên cứu - SuniSVG",

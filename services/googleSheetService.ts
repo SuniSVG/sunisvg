@@ -91,7 +91,7 @@ const getFromAppsScript = async (
     const timer = setTimeout(() => controller.abort(), timeout);
 
     const fetchOptions: RequestInit = noNextCache 
-      ? { cache: 'no-store' } 
+      ? { next: { revalidate: 3600 } } 
       : { next: { revalidate: 300 } };
 
     try {
@@ -169,7 +169,7 @@ const postToAppsScript = async (
   let lastError: any;
 
   const fetchOptions: RequestInit = noNextCache 
-    ? { cache: 'no-store' } 
+    ? { next: { revalidate: 3600 } } 
     : { next: { revalidate: 30 } };
 
   for (let attempt = 0; attempt <= retries; attempt++) {
