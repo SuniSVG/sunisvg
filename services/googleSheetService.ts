@@ -890,8 +890,8 @@ return rawAccounts.map((acc: any) => ({
 
 export const fetchArticles = async (): Promise<ScientificArticle[]> => {
     // Bỏ qua localStorage cho sheet này vì dữ liệu rất lớn, chỉ dùng memory cache.
-    // Đã bỏ ThumbnailURL và Authors để tiết kiệm ~5MB dung lượng payload
-    const fields = 'ID,Title,Category,SubmissionDate,Status,Pending';
+    // Đã bỏ ThumbnailURL để tiết kiệm dung lượng payload
+    const fields = 'ID,Title,Authors,Abstract,Keywords,Category,DocumentURL,SubmitterEmail,SubmissionDate,Status,Pending,Feedback';
     const rawArticles = await fetchDataFromAppsScript<any>('Research_Accounts', false, true, fields);
     return rawArticles.map((art: any) => {
     const id = String(art['ID'] || '').trim();
@@ -899,15 +899,15 @@ export const fetchArticles = async (): Promise<ScientificArticle[]> => {
         ID: id,
         SM_DOI: `080727${id}`,
         Title: String(art['Title'] || '').trim(),
-        Authors: '',
-        Abstract: '',
-        Keywords: '',
+        Authors: String(art['Authors'] || '').trim(),
+        Abstract: String(art['Abstract'] || '').trim(),
+        Keywords: String(art['Keywords'] || '').trim(),
         Category: String(art['Category'] || '').trim(),
-        DocumentURL: '',
-        SubmitterEmail: '',
+        DocumentURL: String(art['DocumentURL'] || '').trim(),
+        SubmitterEmail: String(art['SubmitterEmail'] || '').trim(),
         SubmissionDate: String(art['SubmissionDate'] || '').trim(),
         Status: String(art['Pending'] || art['Status'] || 'Pending').trim(), 
-        Feedback: '',
+        Feedback: String(art['Feedback'] || '').trim(),
         ThumbnailURL: '',
     };
     });
@@ -925,8 +925,8 @@ export const fetchArticlesForSitemap = async (): Promise<Partial<ScientificArtic
 };
 
 export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
-    // Đã bỏ ThumbnailURL và Authors
-    const fields = 'ID,Title,Category,SubmissionDate,Status,Price,Part';
+    // Đã bỏ ThumbnailURL
+    const fields = 'ID,Title,Authors,Abstract,Keywords,Category,DocumentURL,SubmitterEmail,SubmissionDate,Status,Price,Part,Feedback';
     const rawArticles = await fetchDataFromAppsScript<any>('Premium', false, false, fields);
     return rawArticles.map((art: any) => {
         const id = String(art['ID'] || '').trim();
@@ -934,15 +934,15 @@ export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
             ID: id,
             SM_DOI: `080727${id}`,
             Title: String(art['Title'] || '').trim(),
-            Authors: '',
-            Abstract: '',
-            Keywords: '',
+            Authors: String(art['Authors'] || '').trim(),
+            Abstract: String(art['Abstract'] || '').trim(),
+            Keywords: String(art['Keywords'] || '').trim(),
             Category: String(art['Category'] || '').trim(),
-            DocumentURL: '',
-            SubmitterEmail: '',
+            DocumentURL: String(art['DocumentURL'] || '').trim(),
+            SubmitterEmail: String(art['SubmitterEmail'] || '').trim(),
             SubmissionDate: String(art['SubmissionDate'] || '').trim(),
             Status: String(art['Status'] || 'Approved').trim() as 'Pending' | 'Approved' | 'Rejected',
-            Feedback: '',
+            Feedback: String(art['Feedback'] || '').trim(),
             Price: String(art['Price'] || '0').trim().replace(/,/g, ''),
             Part: String(art['Part'] || '').trim(),
             ThumbnailURL: '',

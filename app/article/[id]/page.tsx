@@ -42,12 +42,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     const resolvedParams = await params;
     const id = resolvedParams.id;
     
-    const [allArticles, premiumArticles] = await Promise.all([
-        fetchArticles(),
-        fetchPremiumArticles()
-    ]);
-    
-    const article = allArticles.find(a => a.ID === id) || premiumArticles.find(a => a.ID === id);
+    let article: ScientificArticle | undefined;
+
+    try {
+        const [allArticles, premiumArticles] = await Promise.all([
+            fetchArticles(),
+            fetchPremiumArticles()
+        ]);
+        article = allArticles.find(a => a.ID === id) || premiumArticles.find(a => a.ID === id);
+    } catch (error) {
+        console.error("Metadata fetch error:", error);
+    }
 
     if (!article) {
         return {
