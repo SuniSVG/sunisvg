@@ -124,6 +124,7 @@ export interface ScientificArticle {
   Feedback: string;
   Price?: string;
   Part?: string;
+  ThumbnailURL?: string;
 }
 
 export interface ForumPost {

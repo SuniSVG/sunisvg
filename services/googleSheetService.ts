@@ -74,7 +74,8 @@ const getFromAppsScript = async (
   action: string,
   params: Record<string, any> = {},
   retries = 2,
-  timeout = 25000
+  timeout = 25000,
+  noNextCache = false
 ): Promise<any> => {
   const queryString = new URLSearchParams({ action, ...params }).toString();
   
@@ -89,6 +90,10 @@ const getFromAppsScript = async (
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
+    const fetchOptions: RequestInit = noNextCache 
+      ? { cache: 'no-store' } 
+      : { next: { revalidate: 300 } };
+
     try {
       const response = await fetch(url, {
         method: "GET",
@@ -96,7 +101,7 @@ const getFromAppsScript = async (
           "Content-Type": "text/plain;charset=utf-8"
         },
         signal: controller.signal,
-        next: { revalidate: 300 } // Cache 5 phút khớp với CACHE_TTL của GAS
+        ...fetchOptions
       });
 
       clearTimeout(timer);
@@ -158,9 +163,14 @@ const getFromAppsScript = async (
 const postToAppsScript = async (
   payload: Record<string, any>,
   retries = 2,
-  timeout = 25000
+  timeout = 25000,
+  noNextCache = false
 ): Promise<any> => {
   let lastError: any;
+
+  const fetchOptions: RequestInit = noNextCache 
+    ? { cache: 'no-store' } 
+    : { next: { revalidate: 30 } };
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
@@ -172,7 +182,7 @@ const postToAppsScript = async (
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload),
         signal: controller.signal,
-        next: { revalidate: 30 }
+        ...fetchOptions
       });
 
       clearTimeout(timer);
@@ -231,6 +241,8 @@ const fetchDataFromAppsScript = async <T>(
 ): Promise<T[]> => {
 
   const cacheKey = `post:${sheetName}`;
+  const isHugeSheet = sheetName === 'Research_Accounts' || sheetName === 'Questions_ABCD' || sheetName === 'Questions_TLN';
+  const timeoutLimit = isHugeSheet ? 60000 : 25000;
 
   let cached = getMemoryCache<T[]>(cacheKey);
 
@@ -248,7 +260,7 @@ const fetchDataFromAppsScript = async <T>(
       const revalidate = getFromAppsScript("getSheetData", {
         sheetName,
         ignoreCache: true // Force refresh on server side if needed, though GAS handles its own cache
-      })
+      }, 2, timeoutLimit, isHugeSheet)
       .then(res => {
 
         if (res.status === "success" && Array.isArray(res.data)) {
@@ -281,7 +293,7 @@ const fetchDataFromAppsScript = async <T>(
 
   let result;
   try {
-    result = await getFromAppsScript("getSheetData", { sheetName });
+    result = await getFromAppsScript("getSheetData", { sheetName }, 2, timeoutLimit, isHugeSheet);
     
     // Fallback to POST if GET returns the default "API running" message (Old Deployment)
     if (result.status === "ok" && result.message === "API running") {
@@ -291,7 +303,7 @@ const fetchDataFromAppsScript = async <T>(
     result = await postToAppsScript({
       action: "getSheetData",
       sheetName
-    });
+    }, 2, timeoutLimit, isHugeSheet);
   }
 
   if (result.status === "success" && Array.isArray(result.data)) {
@@ -880,8 +892,9 @@ export const fetchArticles = async (): Promise<ScientificArticle[]> => {
         DocumentURL: String(art['DocumentURL'] || '').trim(),
         SubmitterEmail: String(art['SubmitterEmail'] || '').trim(),
         SubmissionDate: String(art['SubmissionDate'] || '').trim(),
-        Status: String(art['Pending'] || 'Pending').trim(), 
+        Status: String(art['Pending'] || art['Status'] || 'Pending').trim(), 
         Feedback: String(art['Feedback'] || '').trim(),
+        ThumbnailURL: String(art['ThumbnailURL'] || '').trim(),
     };
     });
 };
@@ -905,6 +918,7 @@ export const fetchPremiumArticles = async (): Promise<ScientificArticle[]> => {
             Feedback: String(art['Feedback'] || '').trim(),
             Price: String(art['Price'] || '0').trim().replace(/,/g, ''),
             Part: String(art['Part'] || '').trim(),
+            ThumbnailURL: String(art['ThumbnailURL'] || '').trim(),
         };
     });
 };

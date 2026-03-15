@@ -64,7 +64,7 @@ export default function ArticlesClient({ initialArticles, initialAccounts }: Art
     const filteredArticles = useMemo(() => {
         return initialArticles.filter(article => {
             // Chỉ hiển thị các bài viết đã được duyệt
-            if (article.Status !== 'Approved') return false; 
+            if (article.Status?.toLowerCase() !== 'approved') return false; 
             
             const query = searchQuery.toLowerCase();
             const matchesSearch = !query || 
@@ -203,14 +203,48 @@ export default function ArticlesClient({ initialArticles, initialAccounts }: Art
                                             }
                                         } catch(e) {}
                                         
+                                        // Tự động sinh Thumbnail từ Google Drive URL nếu không có sẵn
+                                        let previewSrc = article.ThumbnailURL;
+                                        if (!previewSrc && article.DocumentURL) {
+                                            const driveMatch = article.DocumentURL.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                                            if (driveMatch) {
+                                                previewSrc = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1000`;
+                                            } else if (article.DocumentURL.includes('toanmath.com/toanmath-pdf/')) {
+                                                const fileName = article.DocumentURL.split('/').pop()?.replace('.pdf', '.png');
+                                                let year = '2026', month = '03';
+                                                if (article.SubmissionDate) {
+                                                    const m = article.SubmissionDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                                                    if (m) { month = m[2].padStart(2, '0'); year = m[3]; }
+                                                }
+                                                previewSrc = `https://toanmath.com/wp-content/uploads/${year}/${month}/${fileName}`;
+                                            }
+                                        }
+
                                         return (
                                             <Link 
                                                 key={article.ID} 
-                                                href={`/article/${slugify(article.Title)}-${article.ID}`}
+                                                href={`/article/${article.ID}`}
                                                 className="ac-card group"
                                             >
                                                 <div className="ac-accent" />
                                                 {isNew && <div className="ac-new-badge">Mới</div>}
+                                                
+                                                {previewSrc ? (
+                                                    <div className="w-full h-40 mb-4 overflow-hidden rounded-xl bg-gray-100 border border-gray-100 shrink-0 relative">
+                                                        <img 
+                                                            src={previewSrc} 
+                                                            alt={article.Title} 
+                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                            onError={(e) => {
+                                                                (e.target as HTMLImageElement).style.display = 'none';
+                                                            }}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-full h-40 mb-4 overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 shrink-0 flex items-center justify-center group-hover:border-blue-300 transition-colors">
+                                                        <Icon name="file-text" className="w-10 h-10 text-blue-200" />
+                                                    </div>
+                                                )}
                                                 
                                                 <h3 className="ac-title" title={article.Title}>
                                                     <MathRenderer text={article.Title} />

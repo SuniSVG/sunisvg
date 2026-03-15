@@ -103,7 +103,7 @@ export default function ArticleClient({ actualId }: { actualId: string }) {
 
                     // Related articles (same category, excluding current), tăng số lượng đề xuất
                     const related = allArticles
-                        .filter(a => a.Category === foundArticle.Category && a.ID !== foundArticle.ID && a.Status === 'Approved')
+                        .filter(a => a.Category === foundArticle.Category && a.ID !== foundArticle.ID && a.Status?.toLowerCase() === 'approved')
                         .slice(0, 20);
                     setRelatedArticles(related);
 
@@ -176,7 +176,7 @@ export default function ArticleClient({ actualId }: { actualId: string }) {
         );
     }
 
-    if (article.Status !== 'Approved' && !canViewAdminContent && !isAuthor) {
+    if (article.Status?.toLowerCase() !== 'approved' && !canViewAdminContent && !isAuthor) {
         return (
             <div className="max-w-2xl mx-auto text-center p-10 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl border border-yellow-200 shadow-lg">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-yellow-100 to-yellow-200 flex items-center justify-center">
@@ -257,9 +257,20 @@ export default function ArticleClient({ actualId }: { actualId: string }) {
                                 <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
                                     <User className="w-5 h-5 text-purple-600" />
                                 </div>
-                                <div>
+                                <div className="min-w-0 flex-1">
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tác giả</p>
-                                    <p className="text-sm font-black text-gray-800 truncate max-w-[100px]">{article.Authors}</p>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <p className="text-sm font-black text-gray-800 truncate max-w-[120px]">{article.Authors}</p>
+                                        {authorBadges.length > 0 && (
+                                            <div className="flex items-center gap-1">
+                                                {authorBadges.map((badge, idx) => (
+                                                    <span key={idx} title={badge.description} className="text-sm cursor-help hover:scale-110 transition-transform">
+                                                        {badge.icon}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
@@ -281,6 +292,13 @@ export default function ArticleClient({ actualId }: { actualId: string }) {
                                 </div>
                             </div>
                         </div>
+                        
+                        {article.SM_DOI && (
+                            <div className="mt-5 inline-flex items-center gap-2 bg-gray-50/80 px-3 py-1.5 rounded-lg border border-gray-100 text-[11px] font-mono font-medium text-gray-500 select-all hover:bg-gray-100 transition-colors">
+                                <Hash className="w-3.5 h-3.5 shrink-0" />
+                                DOI: {article.SM_DOI}
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex flex-col gap-3 shrink-0">
@@ -356,13 +374,49 @@ export default function ArticleClient({ actualId }: { actualId: string }) {
                                     );
                                 } else if (article.DocumentURL) {
                                     let embedUrl = article.DocumentURL;
+                                    
+                                    // 1. Xử lý link Google Drive
                                     if (embedUrl.includes('drive.google.com')) {
                                         embedUrl = embedUrl.replace(/\/view.*$/, '/preview').replace(/\/edit.*$/, '/preview');
+                                        return (
+                                            <iframe
+                                                src={`${embedUrl}#toolbar=0`}
+                                                className="w-full h-full border-0"
+                                                title={article.Title}
+                                            />
+                                        );
                                     }
                                     
+                                    // 2. Xử lý link PDF trực tiếp (dùng bao gồm cả query params)
+                                    if (embedUrl.toLowerCase().includes('.pdf')) {
+                                        return (
+                                            <object
+                                                data={`${embedUrl}#toolbar=0`}
+                                                type="application/pdf"
+                                                className="w-full h-full border-0"
+                                            >
+                                                <div className="relative w-full h-full bg-gray-100 flex flex-col items-center justify-center">
+                                                    <iframe
+                                                        src={`https://docs.google.com/viewer?url=${encodeURIComponent(embedUrl)}&embedded=true`}
+                                                        className="w-full h-full border-0 absolute inset-0 z-10"
+                                                        title={article.Title}
+                                                    />
+                                                    <div className="z-0 flex flex-col items-center justify-center text-gray-500 p-6 text-center">
+                                                        <FileText className="w-12 h-12 mb-3 opacity-30" />
+                                                        <p className="text-sm font-medium">Trình duyệt không hỗ trợ đọc PDF trực tiếp.</p>
+                                                        <a href={embedUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-bold bg-blue-50 px-4 py-2 rounded-lg transition-colors">
+                                                            <ExternalLink className="w-4 h-4" /> Mở file PDF
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </object>
+                                        );
+                                    }
+                                    
+                                    // 3. Các loại link khác (web, youtube...)
                                     return (
                                         <iframe
-                                            src={`${embedUrl}#toolbar=0`}
+                                            src={embedUrl}
                                             className="w-full h-full border-0"
                                             title={article.Title}
                                         />
@@ -502,15 +556,33 @@ export default function ArticleClient({ actualId }: { actualId: string }) {
                         
                         <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 scrollbar-hide">
                             {relatedArticles.length > 0 ? (
-                                relatedArticles.map((rel) => (
+                                relatedArticles.map((rel) => {
+                                    let relThumb = rel.ThumbnailURL;
+                                    if (!relThumb && rel.DocumentURL) {
+                                        const match = rel.DocumentURL.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                                        if (match) relThumb = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
+                                        else if (rel.DocumentURL.includes('toanmath.com/toanmath-pdf/')) {
+                                            const fileName = rel.DocumentURL.split('/').pop()?.replace('.pdf', '.png');
+                                            let year = '2026', month = '03';
+                                            if (rel.SubmissionDate) {
+                                                const m = rel.SubmissionDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                                                if (m) { month = m[2].padStart(2, '0'); year = m[3]; }
+                                            }
+                                            relThumb = `https://toanmath.com/wp-content/uploads/${year}/${month}/${fileName}`;
+                                        }
+                                    }
+                                    return (
                                     <Link 
                                         key={rel.ID} 
-                                        href={`/article/${slugify(rel.Title)}-${rel.ID}`}
+                                        href={`/article/${rel.ID}`}
                                         className="group flex gap-4 p-2 rounded-xl hover:bg-gray-50 transition-colors"
                                     >
-                                        <div className="w-16 h-20 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center shrink-0 border border-blue-100 group-hover:scale-105 transition-transform overflow-hidden relative">
-                                            <FileText className="w-8 h-8 text-blue-400 opacity-50" />
-                                            <div className="absolute inset-0 bg-blue-600/5 group-hover:bg-blue-600/0 transition-colors" />
+                                        <div className="w-16 h-20 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 border border-gray-200 group-hover:scale-105 transition-transform overflow-hidden relative">
+                                            {relThumb ? (
+                                                <img src={relThumb} alt="" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
+                                            ) : (
+                                                <FileText className="w-8 h-8 text-blue-300 opacity-50" />
+                                            )}
                                         </div>
                                         <div className="flex-1 min-w-0 space-y-1 py-1">
                                             <h4 className="text-sm font-bold text-gray-800 line-clamp-2 group-hover:text-blue-600 transition-colors leading-snug">
@@ -522,7 +594,8 @@ export default function ArticleClient({ actualId }: { actualId: string }) {
                                             </div>
                                         </div>
                                     </Link>
-                                ))
+                                    )
+                                })
                             ) : (
                                 <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                                     <p className="text-sm text-gray-400 font-medium italic">Hiện tại chưa có tài liệu liên quan</p>

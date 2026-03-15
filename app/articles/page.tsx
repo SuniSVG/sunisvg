@@ -4,10 +4,8 @@ import ArticlesClient from './ArticlesClient';
 import { Metadata } from 'next';
 import type { ScientificArticle, Account } from '@/types';
 
-// Cache (ISR) danh sách bài viết trong 1 giờ
-export const revalidate = 3600;
+export const revalidate = 600;
 
-// ─── SEO Metadata (Google bot sẽ đọc cái này ngay từ request đầu) ────────────
 export const metadata: Metadata = {
     title: "Thư viện 18.000+ Tài liệu học tập, Đề thi, Nghiên cứu - SuniSVG",
     description: "Khám phá kho tài liệu khổng lồ môn Toán, Lý, Hóa, Sinh, Anh... Tải xuống đề thi thử THPT Quốc gia có đáp án và nghiên cứu khoa học từ cộng đồng SuniSVG.",
@@ -19,14 +17,11 @@ export const metadata: Metadata = {
     }
 };
 
-// ─── Phụ thuộc style UI cũ giữ nguyên để không làm gãy giao diện ──────────────
 const uiStyles = `
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
 
-/* ── Layout root ── */
 .ar-root { font-family: 'DM Sans', sans-serif; }
 
-/* ── Hero ── */
 .ar-hero {
     background: linear-gradient(135deg, #166534 0%, #15803d 40%, #16a34a 70%, #0d9488 100%);
     padding: 4rem 1.5rem 5rem;
@@ -96,10 +91,8 @@ const uiStyles = `
 .ar-stat-num { font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.2rem; font-weight: 800; color: #fff; line-height: 1; }
 .ar-stat-lbl { font-size: .68rem; font-weight: 600; color: rgba(209,250,229,.7); text-transform: uppercase; letter-spacing: .05em; }
 
-/* ── Body ── */
 .ar-body { max-width: 1280px; margin: 0 auto; padding: 0 1rem 4rem; }
 
-/* Search bar */
 .ar-search-wrap {
     max-width: 700px; margin: -1.75rem auto 0;
     position: relative; z-index: 10;
@@ -124,7 +117,6 @@ const uiStyles = `
 }
 .ar-search-clear:hover { color: #374151; background: #f3f4f6; }
 
-/* Success banner */
 .ar-success {
     background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
     border-left: 3px solid #22c55e; border-radius: 12px;
@@ -132,7 +124,6 @@ const uiStyles = `
     font-size: .85rem; color: #166534; margin: 1.5rem 0;
 }
 
-/* Keyword chips */
 .ar-chips { display: flex; gap: .5rem; overflow-x: auto; scrollbar-width: none; padding: 1.5rem 0 .5rem; }
 .ar-chips::-webkit-scrollbar { display: none; }
 .ar-chip {
@@ -149,11 +140,9 @@ const uiStyles = `
     box-shadow: 0 4px 14px rgba(22,163,74,.3);
 }
 
-/* ── Grid layout ── */
 .ar-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 1rem; }
 @media (min-width: 1024px) { .ar-grid { grid-template-columns: 240px 1fr; } }
 
-/* ── Sidebar ── */
 .ar-sidebar { position: sticky; top: 1.5rem; align-self: start; display: flex; flex-direction: column; gap: 1rem; }
 .ar-sidebar-box {
     background: #fff; border-radius: 18px;
@@ -175,11 +164,9 @@ const uiStyles = `
 .ar-sidebar-btn.active { background: linear-gradient(135deg, rgba(22,163,74,.12), rgba(21,128,61,.06)); color: #16a34a; font-weight: 700; }
 .ar-sidebar-btn.active-purple { background: linear-gradient(135deg, rgba(147,51,234,.1), rgba(109,40,217,.05)); color: #7c3aed; font-weight: 700; }
 
-/* ── Result info ── */
 .ar-result-info { font-size: .8rem; color: #8aaa93; margin-bottom: 1rem; font-weight: 500; }
 .ar-result-info strong { color: #0f2419; }
 
-/* ── Article card ── */
 .ac-card {
     background: #fff; border-radius: 18px;
     border: 1.5px solid #f0f4f1;
@@ -248,7 +235,6 @@ const uiStyles = `
 }
 .ac-date { display: flex; align-items: center; gap: .3rem; font-size: .68rem; color: #9ca3af; flex-shrink: 0; }
 
-/* ── Skeleton ── */
 .ac-skeleton { background: #fff; border-radius: 18px; border: 1.5px solid #f0f4f1; padding: 1.25rem; }
 .ac-sk-line {
     border-radius: 6px;
@@ -257,7 +243,6 @@ const uiStyles = `
     animation: ar-shimmer 1.5s infinite;
 }
 
-/* ── Empty state ── */
 .ar-empty {
     background: #fff; border-radius: 24px;
     border: 2px dashed #d1fae5; padding: 4rem 2rem; text-align: center;
@@ -278,7 +263,6 @@ const uiStyles = `
 }
 .ar-reset-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(22,163,74,.4); }
 
-/* Error / loading */
 .ar-error { background: #fff; border-radius: 24px; border: 2px dashed #fecdd3; padding: 4rem 2rem; text-align: center; }
 .ar-retry-btn {
     display: inline-flex; align-items: center; gap: .5rem;
@@ -295,7 +279,6 @@ const uiStyles = `
 }
 .ar-loading-text { font-size: .9rem; color: #6b7f72; font-weight: 600; font-family: 'DM Sans', sans-serif; }
 
-/* ── Pagination ── */
 .ar-pagination { display: flex; justify-content: center; align-items: center; gap: .5rem; margin-top: 2.5rem; }
 .ar-page-btn {
     min-width: 38px; height: 38px; border-radius: 10px; border: 1.5px solid #e5e7eb;
@@ -311,7 +294,6 @@ const uiStyles = `
     box-shadow: 0 4px 14px rgba(22,163,74,.35);
 }
 
-/* ── Keyframes ── */
 @keyframes ar-spin { to { transform: rotate(360deg); } }
 @keyframes ar-pulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
 @keyframes ar-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
@@ -327,8 +309,7 @@ export default async function ArticlesPage() {
             fetchAccounts()
         ]);
         
-        // Sắp xếp trên server luôn
-        articles = artData.sort((a, b) => {
+        articles = (artData || []).sort((a, b) => {
             const tA = parseVNDateToDate(a.SubmissionDate)?.getTime() || 0;
             const tB = parseVNDateToDate(b.SubmissionDate)?.getTime() || 0;
             return tB - tA;
