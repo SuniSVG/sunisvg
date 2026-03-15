@@ -90,8 +90,9 @@ const getFromAppsScript = async (
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
+    // Tắt Next.js Data Cache cho các sheet khổng lồ để không bị báo lỗi vượt quá 2MB
     const fetchOptions: RequestInit = noNextCache 
-      ? { next: { revalidate: 3600 } } 
+      ? { cache: 'no-store' } 
       : { next: { revalidate: 300 } };
 
     try {
@@ -168,8 +169,9 @@ const postToAppsScript = async (
 ): Promise<any> => {
   let lastError: any;
 
+  // Tắt Next.js Data Cache cho các sheet khổng lồ
   const fetchOptions: RequestInit = noNextCache 
-    ? { next: { revalidate: 3600 } } 
+    ? { cache: 'no-store' } 
     : { next: { revalidate: 30 } };
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -242,7 +244,7 @@ const fetchDataFromAppsScript = async <T>(
 ): Promise<T[]> => {
 
   const cacheKey = fields ? `post:${sheetName}_${fields.replace(/[\s,]/g, '_')}` : `post:${sheetName}`;
-  const isHugeSheet = sheetName === 'Research_Accounts' || sheetName === 'Questions_ABCD' || sheetName === 'Questions_TLN';
+  const isHugeSheet = sheetName === 'Research_Accounts' || sheetName === 'Premium' || sheetName === 'Questions_ABCD' || sheetName === 'Questions_TLN';
   const timeoutLimit = isHugeSheet ? 60000 : 25000;
 
   let cached = getMemoryCache<T[]>(cacheKey);

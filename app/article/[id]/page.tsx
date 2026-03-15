@@ -3,7 +3,8 @@ import ArticleClient from './ArticleClient';
 import { fetchArticles, fetchPremiumArticles } from '@/services/googleSheetService';
 import type { ScientificArticle } from '@/types';
 
-export const revalidate = 600;
+export const revalidate = 3600;
+export const dynamicParams = true; // Bật cờ này để cho phép render động các URL chưa được build sẵn
 
 function getPreviewUrl(article: ScientificArticle): string {
     if (article.ThumbnailURL) return article.ThumbnailURL;
@@ -32,13 +33,9 @@ function getPreviewUrl(article: ScientificArticle): string {
 
 // Thêm hàm này để tạo sẵn các route tĩnh
 export async function generateStaticParams() {
-    const [allArticles, premiumArticles] = await Promise.all([
-        fetchArticles(),
-        fetchPremiumArticles()
-    ]);
-    
-    const all = [...allArticles, ...premiumArticles];
-    return all.filter(a => a.ID).map((article) => ({ id: article.ID }));
+    // Trả về mảng rỗng để Next.js KHÔNG pre-build 45.000+ trang tĩnh lúc deploy.
+    // Nhờ có dynamicParams = true, trang sẽ tự động được build ngầm (ISR) khi user truy cập.
+    return [];
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {

@@ -19,7 +19,7 @@ export async function generateSitemaps() {
 }
 
 export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://sunisvg.edu.vn';
+  const baseUrl = 'https://sunisvg.netlify.app';
   
   // Fetch data từ Google Sheets
   let articleUrls: MetadataRoute.Sitemap = [];
