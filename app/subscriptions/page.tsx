@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { fetchSubscriptionPlans, fetchUserSubscriptions, buySubscription } from '@/services/googleSheetService';
 import type { SubscriptionPlan, UserSubscription } from '@/types';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { Check, Zap, Shield, Crown, Loader2, Sparkles, ArrowRight, Flame, BookOpen, Gift, ChevronDown } from 'lucide-react';
+import { Check, Zap, Shield, Crown, Loader2, Sparkles, ArrowRight, Flame, BookOpen, Gift, ChevronDown, Upload, ShoppingCart, Ticket, FileText, Star, LayoutTemplate } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 
@@ -455,20 +455,31 @@ export default function SubscriptionsPage() {
 
                       {/* features */}
                       <ul className="space-y-2 mb-5 flex-1">
-                        {plan.Features.map((feat, i) => (
-                          <motion.li key={i}
-                            initial={{ opacity: 0, x: -5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * .06 + i * .03 }}
-                            className="flex items-start gap-2"
-                          >
-                            <span className="mt-0.5 w-3.5 h-3.5 rounded-full shrink-0 flex items-center justify-center"
-                              style={{ background: th.gradient }}>
-                              <Check className="w-2 h-2 text-white" strokeWidth={3} />
-                            </span>
-                            <span className="text-[11px] text-gray-600 leading-snug">{feat}</span>
-                          </motion.li>
-                        ))}
+                        {plan.Features.map((feat, i) => {
+                          let FeatIcon = Check;
+                          const t = feat.toLowerCase();
+                          if (t.includes('đóng góp') || t.includes('tải lên')) FeatIcon = Upload;
+                          else if (t.includes('mua') || t.includes('bán') || t.includes('giao dịch')) FeatIcon = ShoppingCart;
+                          else if (t.includes('voucher') || t.includes('ưu đãi') || t.includes('giảm giá')) FeatIcon = Ticket;
+                          else if (t.includes('tài liệu') || t.includes('khóa học') || t.includes('đề thi')) FeatIcon = FileText;
+                          else if (t.includes('vip') || t.includes('đặc quyền') || t.includes('premium')) FeatIcon = Star;
+                          else if (t.includes('header') || t.includes('tiêu đề') || t.includes('giao diện')) FeatIcon = LayoutTemplate;
+
+                          return (
+                            <motion.li key={i}
+                              initial={{ opacity: 0, x: -5 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * .06 + i * .03 }}
+                              className="flex items-start gap-2"
+                            >
+                              <span className="mt-0.5 w-3.5 h-3.5 rounded-full shrink-0 flex items-center justify-center"
+                                style={{ background: th.gradient }}>
+                                <FeatIcon className="w-2 h-2 text-white" strokeWidth={3} />
+                              </span>
+                              <span className="text-[11px] text-gray-600 leading-snug">{feat}</span>
+                            </motion.li>
+                          );
+                        })}
                       </ul>
 
                       {/* cta button */}

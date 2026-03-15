@@ -14,7 +14,11 @@ function getPreviewUrl(article: ScientificArticle): string {
         return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1000`;
     }
 
-    if (article.DocumentURL.includes('toanmath.com/toanmath-pdf/')) {
+    if (article.DocumentURL.includes('toanmath.com')) {
+        if (article.DocumentURL.includes('/wp-content/uploads/')) {
+            return article.DocumentURL.replace('.pdf', '.png');
+        }
+        
         const fileName = article.DocumentURL.split('/').pop()?.replace('.pdf', '.png');
         let year = '2026', month = '03';
         if (article.SubmissionDate) {
@@ -24,6 +28,17 @@ function getPreviewUrl(article: ScientificArticle): string {
         return `https://toanmath.com/wp-content/uploads/${year}/${month}/${fileName}`;
     }
     return '';
+}
+
+// Thêm hàm này để tạo sẵn các route tĩnh
+export async function generateStaticParams() {
+    const [allArticles, premiumArticles] = await Promise.all([
+        fetchArticles(),
+        fetchPremiumArticles()
+    ]);
+    
+    const all = [...allArticles, ...premiumArticles];
+    return all.filter(a => a.ID).map((article) => ({ id: article.ID }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {

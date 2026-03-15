@@ -6,6 +6,7 @@ import { Icon } from '@/components/shared/Icon';
 import type { ScientificArticle, Account } from '@/types';
 import { slugify } from '@/components/StructuredData';
 import { InlineMath, BlockMath } from 'react-katex';
+import { Upload } from 'lucide-react';
 import 'katex/dist/katex.min.css';
 
 // Render công thức toán học cho các Title/Abstract
@@ -105,6 +106,10 @@ export default function ArticlesClient({ initialArticles, initialAccounts }: Art
                     </p>
                     
                     <div className="ar-hero-actions">
+                        <Link href="/submit" className="ar-submit-btn">
+                            <Upload className="w-5 h-5 shrink-0" />
+                            Đóng góp tài liệu
+                        </Link>
                         <div className="ar-stat">
                             <div className="ar-stat-icon">
                                 <Icon name="book" className="w-5 h-5 text-white" />
@@ -112,15 +117,6 @@ export default function ArticlesClient({ initialArticles, initialAccounts }: Art
                             <div style={{ textAlign: 'left' }}>
                                 <div className="ar-stat-num">{initialArticles.length > 0 ? `${(initialArticles.length/1000).toFixed(1).replace('.0', '')}k+` : '0'}</div>
                                 <div className="ar-stat-lbl">Tài liệu</div>
-                            </div>
-                        </div>
-                        <div className="ar-stat">
-                            <div className="ar-stat-icon">
-                                <Icon name="users" className="w-5 h-5 text-white" />
-                            </div>
-                            <div style={{ textAlign: 'left' }}>
-                                <div className="ar-stat-num">50k+</div>
-                                <div className="ar-stat-lbl">Học sinh</div>
                             </div>
                         </div>
                     </div>
@@ -209,14 +205,18 @@ export default function ArticlesClient({ initialArticles, initialAccounts }: Art
                                             const driveMatch = article.DocumentURL.match(/\/d\/([a-zA-Z0-9_-]+)/);
                                             if (driveMatch) {
                                                 previewSrc = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1000`;
-                                            } else if (article.DocumentURL.includes('toanmath.com/toanmath-pdf/')) {
-                                                const fileName = article.DocumentURL.split('/').pop()?.replace('.pdf', '.png');
-                                                let year = '2026', month = '03';
-                                                if (article.SubmissionDate) {
-                                                    const m = article.SubmissionDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-                                                    if (m) { month = m[2].padStart(2, '0'); year = m[3]; }
+                                            } else if (article.DocumentURL.includes('toanmath.com')) {
+                                                if (article.DocumentURL.includes('/wp-content/uploads/')) {
+                                                    previewSrc = article.DocumentURL.replace('.pdf', '.png');
+                                                } else {
+                                                    const fileName = article.DocumentURL.split('/').pop()?.replace('.pdf', '.png');
+                                                    let year = '2026', month = '03';
+                                                    if (article.SubmissionDate) {
+                                                        const m = article.SubmissionDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                                                        if (m) { month = m[2].padStart(2, '0'); year = m[3]; }
+                                                    }
+                                                    previewSrc = `https://toanmath.com/wp-content/uploads/${year}/${month}/${fileName}`;
                                                 }
-                                                previewSrc = `https://toanmath.com/wp-content/uploads/${year}/${month}/${fileName}`;
                                             }
                                         }
 
