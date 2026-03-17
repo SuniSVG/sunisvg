@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 
 // This is the correct, user-provided Google Apps Script URL.
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbxfWEkahjAQNnW4psfw8K_ay0YPpvkn2qnEPXrv6XATA4Qh5BHonKfVG2_rULpJPLwW/exec";
+  "https://script.google.com/macros/s/AKfycbzp2yLeogBTYHyTQw1eSeS7FX3eHx-_pkuExQiRbmmvoLVVZUGS9jXbxm9Wcogfp1_w5Q/exec";
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
