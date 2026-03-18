@@ -13,10 +13,6 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
     const { id } = await params;
-    
-    // Lược bỏ fetch toàn bộ sheet khổng lồ tại Server để chống hoàn toàn lỗi 500 (Timeout/OOM).
-    // ArticleClient ở phía trình duyệt sẽ vẫn fetch và hiển thị dữ liệu bình thường.
-
     return {
         title: `Tài liệu #${id} - SuniSVG`,
         description: `Xem chi tiết và tải xuống tài liệu #${id} chuẩn cấu trúc Bộ GD&ĐT tại SuniSVG.`,
