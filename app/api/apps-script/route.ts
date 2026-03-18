@@ -1,5 +1,5 @@
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbwubNmpje18TwoV8xUqt_-4FCxmxGNGeMtMO7uDOck4K4xsJQp3Nd0GH3VtnGpK4NYS/exec";
+  "https://script.google.com/macros/s/AKfycbxfWEkahjAQNnW4psfw8K_ay0YPpvkn2qnEPXrv6XATA4Qh5BHonKfVG2_rULpJPLwW/exec";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   const text = await response.text();
 
   return new Response(text, {
-    status: 200,
+    status: response.ok ? 200 : response.status,
     headers: { "Content-Type": "application/json" }
   });
 }
@@ -23,14 +23,14 @@ export async function POST(req: Request) {
 
   const response = await fetch(APPS_SCRIPT_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: bodyAsText,
   });
 
   const text = await response.text();
 
   return new Response(text, {
-    status: 200,
+    status: response.ok ? 200 : response.status,
     headers: { "Content-Type": "application/json" }
   });
 }
