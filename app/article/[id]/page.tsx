@@ -11,8 +11,8 @@ export async function generateStaticParams() {
     return [];
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-    const id = params.id;
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+    const { id } = await params;
     
     // Lược bỏ fetch toàn bộ sheet khổng lồ tại Server để chống hoàn toàn lỗi 500 (Timeout/OOM).
     // ArticleClient ở phía trình duyệt sẽ vẫn fetch và hiển thị dữ liệu bình thường.
@@ -28,6 +28,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     };
 }
 
-export default async function ArticlePage({ params }: { params: { id: string } }) {
-    return <ArticleClient actualId={params.id} />;
+export default async function ArticlePage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    return <ArticleClient actualId={id} />;
 }
