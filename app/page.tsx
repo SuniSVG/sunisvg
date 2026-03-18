@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/shared/Icon';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { fetchCourses, purchaseCourse, fetchPurchasedCategories } from '@/services/googleSheetService';
+import { fetchCourses, fetchPurchasedCategories, purchasePremiumCategory } from '@/services/googleSheetService';
 import type { Course } from '@/types';
 import Image from 'next/image';
 import { convertGoogleDriveUrl } from '@/utils/imageUtils';
@@ -774,7 +774,7 @@ const cleanCategoryName = (name: string): string =>
     if (!ok) return;
     setIsPurchasing(course.ID);
     try {
-      const result = await purchaseCourse(currentUser.Email, course.ID);
+      const result = await purchasePremiumCategory(currentUser.Email, course.Category || course.Title);
       if (result.success) {
         addToast('Đăng ký thành công!', 'success');
         // Optimistically update the state

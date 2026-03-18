@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 
 // This is the correct, user-provided Google Apps Script URL.
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbxfWEkahjAQNnW4psfw8K_ay0YPpvkn2qnEPXrv6XATA4Qh5BHonKfVG2_rULpJPLwW/exec";
+  "https://script.google.com/macros/s/AKfycbwg7YM7xq9v1Z3p4G8wWqNVHAMZ3iaoJjioD09slMjBopE1gBSnZbM7FEhmPySpxccv/exec";
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -727,6 +727,23 @@ export const fetchPurchasedCategories = async (
   email: string
 ): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
   try {
+    // Thử dùng API action trước để tối ưu và tránh lỗi fetch toàn bộ sheet
+    try {
+      const result = await postToAppsScript({
+        action: 'getPurchasedCategories',
+        email: email
+      });
+      if (result.status === 'success' && Array.isArray(result.data)) {
+        return result.data.map((item: any) => ({
+          CategoryName: String(item.CategoryName || item.categoryName || item[1] || '').trim(),
+          PurchaseDate: String(item.PurchaseDate || item.purchaseDate || item[2] || '').trim(),
+        }));
+      }
+    } catch (e) {
+      console.warn('getPurchasedCategories action failed, falling back to sheet fetch', e);
+    }
+
+    // Fallback lấy từ sheet Purchases
     const allPurchases = await fetchDataFromAppsScript<Purchase>('Purchases');
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -795,27 +812,6 @@ export const purchasePremiumCategory = async (
     return { success: false, error: result.message };
   } catch (error: any) {
     // ✅ Bỏ window.location.reload() — không reload khi lỗi
-    return { success: false, error: error.message };
-  }
-};
-
-export const purchaseCourse = async (
-  email: string,
-  courseId: string
-): Promise<{ success: boolean; newBalance?: number; error?: string }> => {
-  try {
-    const result = await postToAppsScript({
-      action: 'purchaseCourse',
-      email,
-      courseId,
-    }, 0, 45000);
-
-    if (result.status === 'success') {
-      return { success: true, newBalance: result.newBalance };
-    }
-    return { success: false, error: result.message };
-  } catch (error: any) {
-    // ✅ Bỏ window.location.reload()
     return { success: false, error: error.message };
   }
 };

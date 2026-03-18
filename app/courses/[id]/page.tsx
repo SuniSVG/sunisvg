@@ -9,7 +9,6 @@ import {
     fetchCourses, 
     fetchPremiumArticles, 
     fetchPurchasedCategories, 
-    purchaseCourse,
     purchasePremiumCategory,
     fetchAccounts,
     getSharedCoursesInbox,
@@ -309,43 +308,6 @@ export default function CourseDetailPage() {
         );
     }, [contentItems]);
 
-    const handlePurchase = async () => {
-        if (!currentUser) {
-            addToast('Vui lòng đăng nhập để đăng ký khóa học.', 'info');
-            router.push('/login');
-            return;
-        }
-        if (!course) return;
-
-        if ((currentUser.Money || 0) < course.Price) {
-            addToast('Số dư không đủ. Vui lòng nạp thêm tiền.', 'error');
-            setIsDepositModalOpen(true);
-            return;
-        }
-
-        const confirmPurchase = window.confirm(
-            `Bạn có chắc chắn muốn đăng ký khóa học "${course.Title}" với giá ${course.Price.toLocaleString('vi-VN')}đ không?`
-        );
-        if (!confirmPurchase) return;
-
-        setIsPurchasing(true);
-        try {
-            const result = await purchasePremiumCategory(currentUser.Email, course.Category);
-            if (result.success) {
-                // ✅ Cập nhật state trực tiếp — KHÔNG reload trang
-                setIsPurchased(true);
-                await refreshCurrentUser(); // cập nhật số dư mới trong AuthContext
-                addToast('Đăng ký thành công! Bạn đã có thể truy cập toàn bộ nội dung.', 'success');
-            } else {
-                addToast(result.error || 'Giao dịch thất bại.', 'error');
-            }
-        } catch (e: any) {
-            addToast(e.message || 'Lỗi kết nối.', 'error');
-        } finally {
-            setIsPurchasing(false);
-        }
-    };
-
     const handleActivate = async () => {
         if (!currentUser) {
             addToast('Vui lòng đăng nhập để kích hoạt khóa học.', 'info');
@@ -372,6 +334,7 @@ export default function CourseDetailPage() {
                 setIsPurchased(true);
                 await refreshCurrentUser();
                 addToast('Kích hoạt thành công! Bạn đã có thể truy cập toàn bộ nội dung.', 'success');
+                setTimeout(() => window.location.reload(), 15000);
             } else {
                 addToast(result.error || 'Kích hoạt thất bại.', 'error');
             }
@@ -401,11 +364,13 @@ export default function CourseDetailPage() {
 
         setIsPurchasing(true);
         try {
-            const result = await purchaseCourse(currentUser.Email, course.ID);
+            // Truyền tên danh mục thay vì ID để tương thích với action purchasePremiumCategory trên Google Apps Script
+            const result = await purchasePremiumCategory(currentUser.Email, course.Category || course.Title);
             if (result.success) {
                 setIsPurchased(true);
                 await refreshCurrentUser();
                 addToast('Mua khóa học thành công!', 'success');
+                setTimeout(() => window.location.reload(), 15000);
             } else {
                 addToast(result.error || 'Giao dịch thất bại.', 'error');
             }
@@ -478,7 +443,7 @@ export default function CourseDetailPage() {
                         <div className="bg-white rounded-2xl p-8 shadow-sm">
                             <h1 className="text-2xl font-bold text-gray-900 mb-6">Giới thiệu khóa học {course.Title}</h1>
                             <p className="text-gray-600 leading-relaxed mb-8 whitespace-pre-line">
-                                {course.Abstract || 'Chương trình học được thiết kế bài bản, bám sát cấu trúc đề thi, giúp học sinh nắm vững kiến thức từ cơ bản đến nâng cao.'}
+                                {course.Abstract || 'Chương trình học được thiết kế bài bản, bám sát cấu trúc đề thi, giúp học sinh nắm vững kiến thức từ cơ bản đến nâng cao. Vì 1 số lí do, sau khi mua xong vui lòng thoát ra đăng nhập lại để tránh lỗi hoặc kiểm tra email để lấy tài liệu'}
                             </p>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">

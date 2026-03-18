@@ -5,7 +5,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { purchaseCourse, useCreditForCourse } from '@/services/googleSheetService';
+import { useCreditForCourse, purchasePremiumCategory } from '@/services/googleSheetService';
 import type { Course } from '@/types';
 import { CreditCard, Zap, Loader2 } from 'lucide-react';
 
@@ -41,7 +41,7 @@ export default function PurchaseButtons({ course, purchasedCourses }: PurchaseBu
 
         setIsBuying(true);
         try {
-            const result = await purchaseCourse(currentUser.Email, course.ID);
+            const result = await purchasePremiumCategory(currentUser.Email, course.Category || course.Title);
             if (result.success) {
                 addToast('Mua khóa học thành công!', 'success');
                 if (refreshCurrentUser) refreshCurrentUser(); // Cập nhật số dư và danh sách khóa học
