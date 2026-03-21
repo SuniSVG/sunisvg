@@ -4,7 +4,7 @@ import { parseVNDateToDate } from '@/utils/dateUtils';
 export const revalidate = 0; // Không cache ở Next.js — tự quản lý cache bên dưới
 
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbxQ7P80RVJYr7-3GQkqi1sGtzsPVWKqWAybU-uJHOQKKiS1xLWRIiDglGgkFRBLMxja/exec";
+  "https://script.google.com/macros/s/AKfycbwUzq0iX9xvVyyBlNDoKpNUAV_pGFIUQwRfXZhrqmsfe63RipMfxVm6I2R079VEN6d5/exec";
 
 // Cache in-memory cho serverless function
 let cachedData: any = null;

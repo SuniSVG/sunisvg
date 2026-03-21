@@ -2,7 +2,7 @@ import type { AnatomyQuestion, MedicalQuestion, Account, DocumentData, AnyQuesti
 
 // This is the correct, user-provided Google Apps Script URL.
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbxQ7P80RVJYr7-3GQkqi1sGtzsPVWKqWAybU-uJHOQKKiS1xLWRIiDglGgkFRBLMxja/exec";
+  "https://script.google.com/macros/s/AKfycbwUzq0iX9xvVyyBlNDoKpNUAV_pGFIUQwRfXZhrqmsfe63RipMfxVm6I2R079VEN6d5/exec";
 
 // --- CONFIG ---
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -79,9 +79,7 @@ const getFromAppsScript = async (
 ): Promise<any> => {
   const queryString = new URLSearchParams({ action, ...params }).toString();
   
-  // Use proxy on client to avoid CORS, direct on server
-  const baseUrl = typeof window !== 'undefined' ? '/api/apps-script' : APPS_SCRIPT_URL;
-  const url = `${baseUrl}?${queryString}`;
+  const url = `${APPS_SCRIPT_URL}?${queryString}`;
   const key = url;
 
   if (pendingRequests.has(key)) return pendingRequests.get(key)!;
@@ -91,9 +89,11 @@ const getFromAppsScript = async (
     const timer = setTimeout(() => controller.abort(), timeout);
 
     // Tắt Next.js Data Cache cho các sheet khổng lồ để không bị báo lỗi vượt quá 2MB
-    const fetchOptions: RequestInit = noNextCache 
-      ? { cache: 'no-store' } 
-      : { next: { revalidate: 300 } };
+    const fetchOptions: RequestInit = typeof window !== 'undefined'
+      ? {} // Client-side fetch doesn't use next/cache options
+      : noNextCache 
+        ? { cache: 'no-store' } 
+        : { next: { revalidate: 300 } };
 
     try {
       const response = await fetch(url, {
@@ -170,17 +170,18 @@ const postToAppsScript = async (
   let lastError: any;
 
   // Tắt Next.js Data Cache cho các sheet khổng lồ
-  const fetchOptions: RequestInit = noNextCache 
-    ? { cache: 'no-store' } 
-    : { next: { revalidate: 30 } };
+  const fetchOptions: RequestInit = typeof window !== 'undefined'
+    ? {} // Client-side fetch doesn't use next/cache options
+    : noNextCache 
+      ? { cache: 'no-store' } 
+      : { next: { revalidate: 30 } };
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const baseUrl = typeof window !== 'undefined' ? '/api/apps-script' : APPS_SCRIPT_URL;
-      const response = await fetch(baseUrl, {
+      const response = await fetch(APPS_SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload),
@@ -344,8 +345,7 @@ async function cachedPost<T>(cacheKey: string, body: object, ttl = CACHE_TTL): P
   const hit = clientCache.get(cacheKey);
   if (hit && Date.now() - hit.ts < ttl) return hit.data as T;
 
-  const baseUrl = typeof window !== 'undefined' ? '/api/apps-script' : APPS_SCRIPT_URL;
-  const res = await fetch(baseUrl, {
+  const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(body)
@@ -723,40 +723,55 @@ export const getScheduleForUser = async (email: string): Promise<ScheduleEvent[]
     }
 };
 
+const pendingPurchasedCategories = new Map<string, Promise<{ CategoryName: string; PurchaseDate: string }[]>>();
+
 export const fetchPurchasedCategories = async (
   email: string
 ): Promise<{ CategoryName: string; PurchaseDate: string }[]> => {
-  try {
-    // Thử dùng API action trước để tối ưu và tránh lỗi fetch toàn bộ sheet
-    try {
-      const result = await postToAppsScript({
-        action: 'getPurchasedCategories',
-        email: email
-      });
-      if (result.status === 'success' && Array.isArray(result.data)) {
-        return result.data.map((item: any) => ({
-          CategoryName: String(item.CategoryName || item.categoryName || item[1] || '').trim(),
-          PurchaseDate: String(item.PurchaseDate || item.purchaseDate || item[2] || '').trim(),
-        }));
-      }
-    } catch (e) {
-      console.warn('getPurchasedCategories action failed, falling back to sheet fetch', e);
-    }
+  const normalizedEmail = email.trim().toLowerCase();
 
-    // Fallback lấy từ sheet Purchases
-    const allPurchases = await fetchDataFromAppsScript<Purchase>('Purchases');
-    const normalizedEmail = email.trim().toLowerCase();
-
-    return allPurchases
-      .filter(p => String(p.UserEmail || '').trim().toLowerCase() === normalizedEmail)
-      .map(p => ({
-        CategoryName: String(p.CategoryName || '').trim(),
-        PurchaseDate: String(p.PurchaseDate || '').trim(),
-      }));
-  } catch (error) {
-    console.error('Failed to fetch purchased categories:', error);
-    return [];
+  if (pendingPurchasedCategories.has(normalizedEmail)) {
+    return pendingPurchasedCategories.get(normalizedEmail)!;
   }
+
+  const promise = (async () => {
+    try {
+      // Thử dùng API action trước để tối ưu và tránh lỗi fetch toàn bộ sheet
+      try {
+        const result = await postToAppsScript({
+          action: 'getPurchasedCategories',
+          email: normalizedEmail
+        }, 0, 30000); // 0 retries, 30s fail-fast timeout
+        if (result.status === 'success' && Array.isArray(result.data)) {
+          return result.data.map((item: any) => ({
+            CategoryName: String(item.CategoryName || item.categoryName || item[1] || '').trim(),
+            PurchaseDate: String(item.PurchaseDate || item.purchaseDate || item[2] || '').trim(),
+          }));
+        }
+      } catch (e) {
+        console.warn('getPurchasedCategories action failed, falling back to sheet fetch', e);
+      }
+
+      // Fallback lấy từ sheet Purchases (dùng chung dữ liệu đã cache)
+      const allPurchases = await fetchDataFromAppsScript<Purchase>('Purchases');
+
+      return allPurchases
+        .filter(p => String(p.UserEmail || '').trim().toLowerCase() === normalizedEmail)
+        .map(p => ({
+          CategoryName: String(p.CategoryName || '').trim(),
+          PurchaseDate: String(p.PurchaseDate || '').trim(),
+        }));
+    } catch (error) {
+      console.error('Failed to fetch purchased categories:', error);
+      return [];
+    } finally {
+      // Clear the pending promise after 10s to prevent concurrent spam but allow fresh data later
+      setTimeout(() => pendingPurchasedCategories.delete(normalizedEmail), 10000);
+    }
+  })();
+
+  pendingPurchasedCategories.set(normalizedEmail, promise);
+  return promise;
 };
 
 export const fetchPurchaseStats = async (): Promise<Record<string, number>> => {

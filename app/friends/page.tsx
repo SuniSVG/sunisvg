@@ -184,6 +184,7 @@ export default function FriendsPage() {
                                 src={convertGoogleDriveUrl(user.AvatarURL)} 
                                 alt={user['Tên tài khoản']} 
                                 fill 
+                                sizes="56px"
                                 className="object-cover" 
                                 referrerPolicy="no-referrer"
                             />
